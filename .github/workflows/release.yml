@@ -1,0 +1,172 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  PROJECT_PATH: 'AdGuardTrayApp/AdGuardTrayApp.csproj'
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: windows
+            runner: windows-latest
+            runtime: win-x64
+            extension: .exe
+            archive: zip
+          - os: windows-arm64
+            runner: windows-latest
+            runtime: win-arm64
+            extension: .exe
+            archive: zip
+          - os: linux
+            runner: ubuntu-latest
+            runtime: linux-x64
+            extension: ''
+            archive: tar.gz
+          - os: linux-arm64
+            runner: ubuntu-latest
+            runtime: linux-arm64
+            extension: ''
+            archive: tar.gz
+          - os: macos
+            runner: macos-latest
+            runtime: osx-x64
+            extension: ''
+            archive: tar.gz
+          - os: macos-arm64
+            runner: macos-latest
+            runtime: osx-arm64
+            extension: ''
+            archive: tar.gz
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.PROJECT_PATH }}
+
+    - name: Build project
+      run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
+
+    - name: Publish project
+      run: |
+        dotnet publish ${{ env.PROJECT_PATH }} \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          --output ./publish/${{ matrix.os }} \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -p:PublishTrimmed=false
+
+    - name: Create archive (Windows)
+      if: matrix.archive == 'zip'
+      run: |
+        cd publish/${{ matrix.os }}
+        7z a ../../AdGuardTrayApp-${{ matrix.os }}.zip *
+
+    - name: Create archive (Unix)
+      if: matrix.archive == 'tar.gz'
+      run: |
+        cd publish/${{ matrix.os }}
+        tar -czf ../../AdGuardTrayApp-${{ matrix.os }}.tar.gz *
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: AdGuardTrayApp-${{ matrix.os }}
+        path: |
+          AdGuardTrayApp-${{ matrix.os }}.zip
+          AdGuardTrayApp-${{ matrix.os }}.tar.gz
+        retention-days: 90
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: Prepare release files
+      run: |
+        mkdir -p ./release-files
+        find ./artifacts -name "*.zip" -o -name "*.tar.gz" | xargs -I {} cp {} ./release-files/
+        ls -la ./release-files
+
+    - name: Extract version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        cat > release_notes.md << 'EOF'
+        ## AdGuard Tray App ${{ steps.get_version.outputs.VERSION }}
+        
+        ### Features
+        - System tray integration with contextual menu
+        - Windows Hello authentication (PIN, Fingerprint, Face recognition)
+        - AdGuard Home API integration for client management
+        - 60-minute timer with automatic reset
+        - Prevention of application closure during active sessions
+        - Visual state indicators (locked/unlocked icons)
+        
+        ### Downloads
+        - **Windows x64**: `AdGuardTrayApp-windows.zip`
+        - **Windows ARM64**: `AdGuardTrayApp-windows-arm64.zip`
+        - **Linux x64**: `AdGuardTrayApp-linux.tar.gz`
+        - **Linux ARM64**: `AdGuardTrayApp-linux-arm64.tar.gz`
+        - **macOS x64**: `AdGuardTrayApp-macos.tar.gz`
+        - **macOS ARM64**: `AdGuardTrayApp-macos-arm64.tar.gz`
+        
+        ### Installation
+        1. Download the appropriate package for your operating system
+        2. Extract the archive
+        3. Run the executable
+        4. Configure your AdGuard Home connection in the settings
+        
+        ### System Requirements
+        - .NET 8.0 Runtime (included in self-contained builds)
+        - Windows 10/11, Linux, or macOS
+        - AdGuard Home instance accessible via network
+        
+        ### Notes
+        - Windows builds include Windows Hello authentication support
+        - Linux and macOS builds may require additional setup for UI frameworks
+        - First run will prompt for AdGuard Home configuration
+        EOF
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: AdGuard Tray App ${{ steps.get_version.outputs.VERSION }}
+        body_path: release_notes.md
+        files: ./release-files/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

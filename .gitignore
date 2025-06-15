@@ -1,6 +1,7 @@
 # Build results
 **/bin/
 **/obj/
+builds/
 
 # Visual Studio / Visual Studio Code
 .vs/
@@ -38,7 +39,3 @@ packages/
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# GitHub specific
-/.github
-/.vscode
