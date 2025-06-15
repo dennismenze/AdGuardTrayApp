@@ -5,8 +5,7 @@ param(
     [Parameter(Mandatory=$true, Position=0)]
     [ValidateSet("setup", "commit", "release", "hotfix", "feature", "status")]
     [string]$Action,
-    
-    [Parameter(Mandatory=$false)]
+      [Parameter(Mandatory=$false)]
     [string]$Message = "",
     
     [Parameter(Mandatory=$false)]
@@ -345,12 +344,13 @@ switch ($Action) {
 ℹ️  Branch: $(git rev-parse --abbrev-ref HEAD)
 ────────────────────────────────────────
 "@ -ForegroundColor Yellow
-        
-        # 4. JETZT die kombinierte Bestätigung
+          # 4. JETZT die kombinierte Bestätigung
         if (-not $Force -and -not $DryRun) {
-            Write-Warning "Committen und Hotfix-Release erstellen? (J/N)"
+            Write-Warning "Committen und Hotfix-Release erstellen? (J/N) [Standard: J]"
             $confirm = Read-Host
-            if ($confirm -notmatch '^[jJyY]') {
+            if ($confirm -eq "" -or $confirm -match '^[jJyY]') {
+                # Continue - Standard ist Ja
+            } else {
                 Write-Info "Abgebrochen."
                 exit 0
             }
@@ -371,9 +371,35 @@ switch ($Action) {
                 exit 1
             }
         }
+          # 6. Release erstellen (automatisch, ohne nochmalige Version-Anzeige)
+        $newContent = $content -replace '<Version>\d+\.\d+\.\d+</Version>', "<Version>$newVersion</Version>"
+        Set-Content $projectFile $newContent -Encoding UTF8
+        Write-Success "Version in $projectFile aktualisiert"
         
-        # 6. Release erstellen (automatisch)
-        Invoke-Release -VersionType "patch" -Force:$true -AutoConfirm:$true
+        # Release Commit und Tag
+        try {
+            git add $projectFile
+            git commit -m "📦 release: Version $newVersion`n`n- patch bump von $currentVersion auf $newVersion`n- Bereit für Release-Deployment`n- AdGuard Tray App Release"
+            Write-Success "Release-Commit erstellt"
+            
+            git tag $newTag
+            Write-Success "Tag $newTag erstellt"
+            
+            # Push to remote
+            $branch = git rev-parse --abbrev-ref HEAD
+            git push origin $branch
+            git push origin $newTag
+            Write-Success "Erfolgreich zu Remote gepusht"
+            
+            Write-Success "🎉 Release erfolgreich erstellt!"
+            Write-Success "Version $newVersion wurde getaggt und gepusht"
+            Write-Success "GitHub Actions wird automatisch das Release erstellen"
+            Write-Info "GitHub Actions: https://github.com/dennismenze/AdGuardTrayApp/actions"
+            
+        } catch {
+            Write-Error "Fehler beim Release: $($_.Exception.Message)"
+            exit 1
+        }
     }
       "feature" {
         Write-Info "Feature-Workflow..."
@@ -436,12 +462,12 @@ switch ($Action) {
 ℹ️  Branch: $(git rev-parse --abbrev-ref HEAD)
 ────────────────────────────────────────
 "@ -ForegroundColor Yellow
-        
-        # 4. JETZT die kombinierte Bestätigung
+          # 4. JETZT die kombinierte Bestätigung mit Enter = Ja
         if (-not $Force -and -not $DryRun) {
-            Write-Warning "Committen und Feature-Release erstellen? (J/N)"
+            Write-Warning "Committen und Feature-Release erstellen? (J/N) [Standard: J]"
             $confirm = Read-Host
-            if ($confirm -notmatch '^[jJyY]') {
+            # Enter oder J/j = Ja, nur explizit N/n = Nein
+            if ($confirm -match '^[nN]') {
                 Write-Info "Abgebrochen."
                 exit 0
             }
@@ -462,9 +488,35 @@ switch ($Action) {
                 exit 1
             }
         }
+          # 6. Release erstellen (automatisch, ohne nochmalige Version-Anzeige)
+        $newContent = $content -replace '<Version>\d+\.\d+\.\d+</Version>', "<Version>$newVersion</Version>"
+        Set-Content $projectFile $newContent -Encoding UTF8
+        Write-Success "Version in $projectFile aktualisiert"
         
-        # 6. Release erstellen (automatisch)
-        Invoke-Release -VersionType "minor" -Force:$true -AutoConfirm:$true
+        # Release Commit und Tag
+        try {
+            git add $projectFile
+            git commit -m "📦 release: Version $newVersion`n`n- minor bump von $currentVersion auf $newVersion`n- Bereit für Release-Deployment`n- AdGuard Tray App Release"
+            Write-Success "Release-Commit erstellt"
+            
+            git tag $newTag
+            Write-Success "Tag $newTag erstellt"
+            
+            # Push to remote
+            $branch = git rev-parse --abbrev-ref HEAD
+            git push origin $branch
+            git push origin $newTag
+            Write-Success "Erfolgreich zu Remote gepusht"
+            
+            Write-Success "🎉 Release erfolgreich erstellt!"
+            Write-Success "Version $newVersion wurde getaggt und gepusht"
+            Write-Success "GitHub Actions wird automatisch das Release erstellen"
+            Write-Info "GitHub Actions: https://github.com/dennismenze/AdGuardTrayApp/actions"
+            
+        } catch {
+            Write-Error "Fehler beim Release: $($_.Exception.Message)"
+            exit 1
+        }
     }"status" {
         Write-Info "Git Status..."
         git status

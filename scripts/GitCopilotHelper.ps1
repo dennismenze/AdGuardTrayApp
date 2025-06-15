@@ -15,13 +15,11 @@ function Get-GitCopilotCommitMessage {
         throw "GitHub CLI nicht gefunden! Installiere mit: winget install GitHub.cli"
     }
     
-    Write-Host "🤖 Verwende GitHub Copilot..." -ForegroundColor Cyan
-    
-    try {
-        # Verwende Start-Process für korrekte stdin-Übertragung
+    Write-Host "🤖 Verwende GitHub Copilot..." -ForegroundColor Cyan    try {
+        # Verwende Start-Process mit ArgumentList für korrekte Escaping
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = "gh"
-        $psi.Arguments = "copilot suggest -t git `"$Prompt`""
+        $psi.ArgumentList = @("copilot", "suggest", "-t", "git", $Prompt)
         $psi.UseShellExecute = $false
         $psi.RedirectStandardInput = $true
         $psi.RedirectStandardOutput = $true
