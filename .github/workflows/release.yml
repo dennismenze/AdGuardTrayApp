@@ -18,7 +18,7 @@ jobs:
   build-windows:
     name: Build Windows Release
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     
     strategy:
       fail-fast: false
@@ -39,6 +39,12 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Install WiX Toolset
+      run: |
+        dotnet tool install --global wix --version 4.0.5
+        wix extension add WixToolset.UI.wixext/4.0.5
+        wix extension add WixToolset.Util.wixext/4.0.5
         
     - name: Restore dependencies
       run: dotnet restore ${{ env.PROJECT_PATH }} --verbosity minimal
@@ -63,11 +69,30 @@ jobs:
         cd publish/${{ matrix.runtime }}
         Compress-Archive -Path * -DestinationPath ../../AdGuardTrayApp-windows-${{ matrix.arch }}.zip
 
-    - name: Upload build artifacts
+    - name: Create MSI Installer
+      run: |
+        # Prepare installer directory
+        New-Item -ItemType Directory -Force -Path "./installer-build/${{ matrix.runtime }}"
+        Copy-Item "./publish/${{ matrix.runtime }}/AdGuardTrayApp.exe" "./installer-build/${{ matrix.runtime }}/"
+        
+        # Build MSI using WiX
+        wix build Installer/AdGuardTrayApp.wxs `
+          -arch ${{ matrix.arch }} `
+          -out AdGuardTrayApp-windows-${{ matrix.arch }}.msi `
+          -d SourceDir="./installer-build/${{ matrix.runtime }}"
+
+    - name: Upload ZIP artifact
       uses: actions/upload-artifact@v4
       with:
-        name: AdGuardTrayApp-windows-${{ matrix.arch }}
+        name: AdGuardTrayApp-windows-${{ matrix.arch }}-zip
         path: AdGuardTrayApp-windows-${{ matrix.arch }}.zip
+        retention-days: 90
+
+    - name: Upload MSI artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: AdGuardTrayApp-windows-${{ matrix.arch }}-msi
+        path: AdGuardTrayApp-windows-${{ matrix.arch }}.msi
         retention-days: 90
 
   create-release:
@@ -89,7 +114,7 @@ jobs:
     - name: Prepare release files
       run: |
         mkdir -p ./release-files
-        find ./artifacts -name "*.zip" | xargs -I {} cp {} ./release-files/
+        find ./artifacts -name "*.zip" -o -name "*.msi" | xargs -I {} cp {} ./release-files/
         ls -la ./release-files
 
     - name: Extract version from tag
@@ -112,17 +137,24 @@ jobs:
         ### 📥 Downloads
         Choose the version that matches your Windows architecture:
         
-        | Architecture | Download | Recommended for |
-        |-------------|----------|----------------|
-        | **x64** | `AdGuardTrayApp-windows-x64.zip` | Most modern PCs (Intel/AMD 64-bit) |
-        | **x86** | `AdGuardTrayApp-windows-x86.zip` | Older 32-bit systems |
-        | **ARM64** | `AdGuardTrayApp-windows-arm64.zip` | Windows on ARM devices |
+        | Architecture | ZIP Download | MSI Installer | Recommended for |
+        |-------------|--------------|---------------|----------------|
+        | **x64** | `AdGuardTrayApp-windows-x64.zip` | `AdGuardTrayApp-windows-x64.msi` | Most modern PCs (Intel/AMD 64-bit) |
+        | **x86** | `AdGuardTrayApp-windows-x86.zip` | `AdGuardTrayApp-windows-x86.msi` | Older 32-bit systems |
+        | **ARM64** | `AdGuardTrayApp-windows-arm64.zip` | `AdGuardTrayApp-windows-arm64.msi` | Windows on ARM devices |
         
-        ### 🚀 Installation
+        ### 🚀 Installation Options
+        
+        #### Option 1: MSI Installer (Recommended)
+        1. **Download** the appropriate `.msi` file for your architecture
+        2. **Double-click** the MSI file to start installation
+        3. **Follow** the installation wizard
+        4. **Launch** from Start Menu or Desktop shortcut
+        
+        #### Option 2: Portable ZIP
         1. **Download** the appropriate ZIP file for your architecture
         2. **Extract** the archive to a folder of your choice
         3. **Run** `AdGuardTrayApp.exe`
-        4. **Configure** your AdGuard Home connection in the settings
         
         ### 💻 System Requirements
         - **OS**: Windows 10 version 1909 or later / Windows 11
@@ -137,6 +169,7 @@ jobs:
         - **Windows Hello**: Secure biometric authentication
         - **Auto-cleanup**: Temporary AdGuard clients are automatically removed
         - **Tray integration**: Runs silently in the background
+        - **MSI Installer**: Professional installation with Start Menu and Desktop shortcuts
         
         ### 📝 First Run Setup
         1. The app will start minimized to the system tray
@@ -148,7 +181,7 @@ jobs:
         ### ❓ Troubleshooting
         - **Windows Defender**: May flag the executable as unknown - allow it in Windows Security
         - **Antivirus**: Some antivirus software may quarantine self-contained executables
-        - **Permissions**: Run as administrator if you encounter permission issues
+        - **MSI Installation**: Run as administrator if you encounter permission issues
         - **Network**: Ensure your AdGuard Home instance is accessible from your network
         
         ### 🆕 What's New in this Version

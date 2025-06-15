@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Package Name="AdGuard Tray App" Language="1033" Version="1.0.0.0" Manufacturer="AdGuard Tray App" UpgradeCode="12345678-1234-1234-1234-123456789012">
+        <SummaryInformation Description="AdGuard Tray App - System tray application for AdGuard Home IP unblocking" />
+        
+        <Media Id="1" Cabinet="AdGuardTrayApp.cab" EmbedCab="yes" />
+        
+        <!-- Install to Program Files -->
+        <StandardDirectory Id="ProgramFilesFolder">
+            <Directory Id="INSTALLFOLDER" Name="AdGuard Tray App" />
+        </StandardDirectory>
+        
+        <!-- Start Menu folder -->
+        <StandardDirectory Id="ProgramMenuFolder">
+            <Directory Id="ApplicationProgramsFolder" Name="AdGuard Tray App"/>
+        </StandardDirectory>
+        
+        <!-- Desktop folder -->
+        <StandardDirectory Id="DesktopFolder" />
+        
+        <DirectoryRef Id="INSTALLFOLDER">
+            <Component Id="AdGuardTrayAppExecutable" Guid="*">
+                <File Id="AdGuardTrayAppExe" Source="$(var.SourceDir)\AdGuardTrayApp.exe" KeyPath="yes" Checksum="yes">
+                    <Shortcut Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Name="AdGuard Tray App" Description="AdGuard Home IP unblocking tool" WorkingDirectory="INSTALLFOLDER" />
+                    <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="AdGuard Tray App" Description="AdGuard Home IP unblocking tool" WorkingDirectory="INSTALLFOLDER" />
+                </File>
+            </Component>
+            
+            <!-- Registry entry for uninstall -->
+            <Component Id="RegistryEntries" Guid="*">
+                <RegistryKey Root="HKCU" Key="Software\AdGuardTrayApp">
+                    <RegistryValue Type="string" Name="InstallPath" Value="[INSTALLFOLDER]" KeyPath="yes"/>
+                </RegistryKey>
+            </Component>
+        </DirectoryRef>
+        
+        <!-- Feature definition -->
+        <Feature Id="ProductFeature" Title="AdGuard Tray App" Level="1">
+            <ComponentRef Id="AdGuardTrayAppExecutable" />
+            <ComponentRef Id="RegistryEntries" />
+        </Feature>
+    </Package>
+</Wix>
