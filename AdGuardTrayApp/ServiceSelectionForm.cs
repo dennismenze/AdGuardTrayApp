@@ -10,212 +10,21 @@ using System.Windows.Forms;
 
 namespace AdGuardTrayApp
 {
-    public class BlockedService
-    {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string IconSvg { get; set; } = "";
-    }
-
-    public class CustomFilterRule
-    {
-        public string Rule { get; set; } = "";
-        public bool IsEnabled { get; set; } = true;
-        public bool IsAppManaged { get; set; } = false;
-    }
-    public class ServiceSelectionForm : Form
-    {
-        private readonly HttpClient httpClient;
+    public partial class ServiceSelectionForm : Form
+    {        private readonly HttpClient httpClient;
         private readonly AdGuardConfig config;
         private readonly AdGuardApiService apiService;
-        private CheckedListBox servicesListBox = null!;
-        private CheckedListBox customRulesListBox = null!;
-        private Button saveButton = null!;
-        private Button cancelButton = null!;
-        private TabControl tabControl = null!;
         private List<BlockedService> allServices = new List<BlockedService>();
         private List<CustomFilterRule> customRules = new List<CustomFilterRule>();
-        private List<string> currentlyBlockedServices = new List<string>(); private string targetClientName = ""; // Name des Ziel-Clients
+        private List<string> currentlyBlockedServices = new List<string>();        private string targetClientName = ""; // Name des Ziel-Clients
 
         public ServiceSelectionForm(HttpClient httpClient, AdGuardConfig config)
         {
             this.httpClient = httpClient;
             this.config = config;
             this.apiService = new AdGuardApiService(httpClient, config);
-            InitializeComponents();
+            InitializeComponent();
             _ = LoadDataAsync();
-        }
-
-        private void InitializeComponents()
-        {
-            Text = "AdGuard Dienste und Filter verwalten";
-            Size = new Size(600, 500);
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-
-            // TabControl für Dienste und Filterregeln
-            tabControl = new TabControl
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Point(10, 10)
-            };
-
-            // Tab für blockierte Dienste
-            var servicesTab = new TabPage("Blockierte Dienste")
-            {
-                Padding = new Padding(10)
-            }; var servicesLabel = new Label
-            {
-                Text = "Wählen Sie die Dienste aus, die BLOCKIERT bleiben sollen:\n(✓ = Dienst wird blockiert, ☐ = Dienst wird entsperrt)",
-                Dock = DockStyle.Top,
-                Height = 50,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Font = new Font("Segoe UI", 9)
-            };
-
-            servicesListBox = new CheckedListBox
-            {
-                Dock = DockStyle.Fill,
-                CheckOnClick = true,
-                Font = new Font("Segoe UI", 9),
-                Margin = new Padding(0, 10, 0, 0)
-            };
-
-            var servicesButtonPanel = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 40
-            };
-
-            var selectAllServicesButton = new Button
-            {
-                Text = "Alle auswählen",
-                Size = new Size(100, 30),
-                Location = new Point(10, 5)
-            };
-            selectAllServicesButton.Click += (s, e) =>
-            {
-                for (int i = 0; i < servicesListBox.Items.Count; i++)
-                {
-                    servicesListBox.SetItemChecked(i, true);
-                }
-            };
-
-            var deselectAllServicesButton = new Button
-            {
-                Text = "Alle abwählen",
-                Size = new Size(100, 30),
-                Location = new Point(120, 5)
-            };
-            deselectAllServicesButton.Click += (s, e) =>
-            {
-                for (int i = 0; i < servicesListBox.Items.Count; i++)
-                {
-                    servicesListBox.SetItemChecked(i, false);
-                }
-            };
-
-            servicesButtonPanel.Controls.AddRange(new Control[] { selectAllServicesButton, deselectAllServicesButton });
-            servicesTab.Controls.AddRange(new Control[] { servicesLabel, servicesListBox, servicesButtonPanel });
-
-            // Tab für benutzerdefinierte Filterregeln
-            var rulesTab = new TabPage("Benutzerdefinierte Filterregeln")
-            {
-                Padding = new Padding(10)
-            };            var rulesLabel = new Label
-            {
-                Text = "Filterregeln zum Deaktivieren auswählen (nur '#ADGUARD_TRAY_APP' Regeln):\n" +
-                       "💡 Setup: AdGuard Home → Filter → Benutzerdefinierte Regeln → '#ADGUARD_TRAY_APP' anhängen",
-                Location = new Point(10, 10),
-                Size = new Size(480, 45),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Font = new Font("Segoe UI", 9)
-            };
-
-            customRulesListBox = new CheckedListBox
-            {
-                Location = new Point(10, 60),
-                Size = new Size(480, 150),
-                CheckOnClick = true,
-                Font = new Font("Consolas", 8),
-                IntegralHeight = false,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
-            };            var rulesButtonPanel = new Panel
-            {
-                Location = new Point(10, 220),
-                Size = new Size(480, 40)
-            };
-
-            var selectAllRulesButton = new Button
-            {
-                Text = "Alle auswählen",
-                Size = new Size(100, 30),
-                Location = new Point(10, 5)
-            };
-            selectAllRulesButton.Click += (s, e) =>
-            {
-                for (int i = 0; i < customRulesListBox.Items.Count; i++)
-                {
-                    customRulesListBox.SetItemChecked(i, true);
-                }
-            };
-
-            var deselectAllRulesButton = new Button
-            {
-                Text = "Alle abwählen",
-                Size = new Size(100, 30),
-                Location = new Point(120, 5)
-            };
-            deselectAllRulesButton.Click += (s, e) =>
-            {
-                for (int i = 0; i < customRulesListBox.Items.Count; i++)
-                {
-                    customRulesListBox.SetItemChecked(i, false);
-                }
-            };
-
-            rulesButtonPanel.Controls.AddRange(new Control[] { selectAllRulesButton, deselectAllRulesButton });
-            rulesTab.Controls.AddRange(new Control[] { rulesLabel, customRulesListBox, rulesButtonPanel });
-
-            tabControl.TabPages.AddRange(new TabPage[] { servicesTab, rulesTab });
-
-            // Buttons für das Formular
-            var buttonPanel = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 50,
-                Padding = new Padding(10)
-            };
-
-            saveButton = new Button
-            {
-                Text = "Speichern und Anwenden",
-                Size = new Size(150, 30),
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-                DialogResult = DialogResult.OK,
-                UseVisualStyleBackColor = true
-            };
-            saveButton.Location = new Point(buttonPanel.Width - saveButton.Width - 160, 10);
-            saveButton.Click += SaveButton_Click;
-
-            cancelButton = new Button
-            {
-                Text = "Abbrechen",
-                Size = new Size(100, 30),
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-                DialogResult = DialogResult.Cancel,
-                UseVisualStyleBackColor = true
-            };
-            cancelButton.Location = new Point(buttonPanel.Width - cancelButton.Width - 20, 10);
-
-            buttonPanel.Controls.AddRange(new Control[] { saveButton, cancelButton });
-
-            Controls.AddRange(new Control[] { tabControl, buttonPanel });
-
-            AcceptButton = saveButton;
-            CancelButton = cancelButton;
         }
 
         private async Task LoadDataAsync()
@@ -252,7 +61,9 @@ namespace AdGuardTrayApp
         {
             // Verwende zentralisierte API-Service-Methode
             allServices = await apiService.GetAvailableBlockedServicesAsync();
-        }private async Task LoadCurrentlyBlockedServices()
+        }
+        
+        private async Task LoadCurrentlyBlockedServices()
         {
             // Verwende die zentralisierte Client-Suche aus AdGuardApiService
             var searchResult = await apiService.FindClientByIpAsync(config.TargetClientIP);
@@ -283,8 +94,7 @@ namespace AdGuardTrayApp
                 // Emoji-Icons für bessere Darstellung
                 var emoji = GetServiceEmoji(service.Id);
                 var isBlocked = currentlyBlockedServices.Contains(service.Id);
-                var status = isBlocked ? "🔒 BLOCKIERT" : "🔓 Erlaubt";
-                var displayText = $"{emoji} {service.Name} - {status}";
+                var displayText = $"{emoji} {service.Name}";
                 var index = servicesListBox.Items.Add(displayText);
 
                 // Markiere als ausgewählt, wenn der Dienst aktuell blockiert ist
@@ -329,7 +139,9 @@ namespace AdGuardTrayApp
                 "torrent" or "bittorrent" => "⬇️",
                 _ => "🌐"
             };
-        }        private void PopulateCustomRulesListBox()
+        }        
+        
+        private void PopulateCustomRulesListBox()
         {
             System.Diagnostics.Debug.WriteLine($"[PopulateRules Debug] Starte mit {customRules.Count} Regeln");
             customRulesListBox.Items.Clear();
@@ -498,5 +310,50 @@ namespace AdGuardTrayApp
                 throw new Exception($"Fehler beim Aktualisieren der Filterregeln: {rulesResponse.StatusCode} - {errorContent}");
             }
         }
+
+        private void SelectAllServicesButton_Click(object? sender, EventArgs e)
+        {
+            for (int i = 0; i < servicesListBox.Items.Count; i++)
+            {
+                servicesListBox.SetItemChecked(i, true);
+            }
+        }
+
+        private void DeselectAllServicesButton_Click(object? sender, EventArgs e)
+        {
+            for (int i = 0; i < servicesListBox.Items.Count; i++)
+            {
+                servicesListBox.SetItemChecked(i, false);
+            }
+        }
+
+        private void SelectAllRulesButton_Click(object? sender, EventArgs e)
+        {
+            for (int i = 0; i < customRulesListBox.Items.Count; i++)
+            {
+                customRulesListBox.SetItemChecked(i, true);
+            }
+        }
+
+        private void DeselectAllRulesButton_Click(object? sender, EventArgs e)
+        {
+            for (int i = 0; i < customRulesListBox.Items.Count; i++)
+            {
+                customRulesListBox.SetItemChecked(i, false);
+            }        }
+    }
+
+    public class BlockedService
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string IconSvg { get; set; } = "";
+    }
+
+    public class CustomFilterRule
+    {
+        public string Rule { get; set; } = "";
+        public bool IsEnabled { get; set; } = true;
+        public bool IsAppManaged { get; set; } = false;
     }
 }

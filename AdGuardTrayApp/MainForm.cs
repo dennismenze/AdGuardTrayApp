@@ -11,30 +11,8 @@ using System.Runtime.InteropServices;
 using System.Linq;
 
 namespace AdGuardTrayApp
-{    // Klasse zur Speicherung der ursprünglichen Client-Einstellungen
-    public class ClientBackup
-    {
-        public string Name { get; set; } = "";
-        public string[] Ids { get; set; } = Array.Empty<string>();
-        public bool UseGlobalSettings { get; set; }
-        public bool FilteringEnabled { get; set; }
-        public bool ParentalEnabled { get; set; }
-        public bool SafebrowsingEnabled { get; set; }
-        public bool SafesearchEnabled { get; set; }
-        public bool UseGlobalBlockedServices { get; set; }
-        public string[] BlockedServices { get; set; } = Array.Empty<string>();
-        public string[] Tags { get; set; } = Array.Empty<string>();
-        public string[] Upstreams { get; set; } = Array.Empty<string>();
-    }
-
-    // Klasse zur Speicherung der ursprünglichen globalen AdGuard-Einstellungen
-    public class AdGuardBackup
-    {
-        public string[] BlockedServicesIds { get; set; } = Array.Empty<string>();
-        public string[] CustomFilterRules { get; set; } = Array.Empty<string>();
-    }
-
-    public class MainForm : Form
+{
+    public partial class MainForm : Form
     {
         private NotifyIcon? trayIcon;
         private System.Windows.Forms.Timer? resetTimer; private bool isUnlocked = false; private HttpClient httpClient;
@@ -75,12 +53,7 @@ namespace AdGuardTrayApp
         }
         public MainForm()
         {
-            // Form konfigurieren
-            this.WindowState = FormWindowState.Minimized;
-            this.ShowInTaskbar = false;
-            this.Visible = false;
-            this.FormBorderStyle = FormBorderStyle.FixedToolWindow;
-            this.Text = "AdGuard Tray App";
+            InitializeComponent();
 
             // Event Handler für sauberes Beenden
             this.FormClosing += MainForm_FormClosing;
@@ -102,10 +75,11 @@ namespace AdGuardTrayApp
                 Visible = true
             }; trayIcon.MouseClick += TrayIcon_Click;
             trayIcon.ContextMenuStrip = CreateContextMenu();
-        }        private ContextMenuStrip CreateContextMenu()
+        }
+        private ContextMenuStrip CreateContextMenu()
         {
             var contextMenu = new ContextMenuStrip();
-            
+
             if (isUnlocked)
             {
                 // Menü für entsperrten Zustand
@@ -129,11 +103,11 @@ namespace AdGuardTrayApp
                 contextMenu.Items.Add("-");
                 contextMenu.Items.Add("Beenden", null, async (s, e) => await ExitApplication());
             }
-            
+
             return contextMenu;
         }        /// <summary>
-        /// Zeigt den Service-Selection-Dialog erneut an (während einer aktiven Session)
-        /// </summary>
+                 /// Zeigt den Service-Selection-Dialog erneut an (während einer aktiven Session)
+                 /// </summary>
         private void ShowServiceSelectionDialog()
         {
             try
@@ -143,10 +117,10 @@ namespace AdGuardTrayApp
 
                 if (result == DialogResult.OK)
                 {
-                    ShowBalloonTip("Einstellungen aktualisiert", 
-                        "Die Dienst- und Filtereinstellungen wurden erfolgreich aktualisiert.", 
+                    ShowBalloonTip("Einstellungen aktualisiert",
+                        "Die Dienst- und Filtereinstellungen wurden erfolgreich aktualisiert.",
                         ToolTipIcon.Info);
-                    
+
                     // Menü aktualisieren (falls sich der Status geändert hat)
                     UpdateTrayMenu();
                 }
@@ -383,13 +357,14 @@ namespace AdGuardTrayApp
             // Diese Methode wird jetzt von ShowServiceSelectionAndUnlock() ersetzt
             // Für Kompatibilität beibehalten, aber eigentlich nicht mehr verwendet
             await ShowServiceSelectionAndUnlock();
-        }        private async Task EnableClientAccess()
+        }
+        private async Task EnableClientAccess()
         {
             try
             {
                 // Verwende zentralisierte Client-Suche für Backup-Zwecke
                 var searchResult = await apiService!.FindClientByIpAsync(config.TargetClientIP);
-                
+
                 if (searchResult.Found && searchResult.BackupData != null)
                 {
                     // Sichere ursprüngliche Einstellungen
@@ -400,7 +375,7 @@ namespace AdGuardTrayApp
                 {
                     LogDebugInfo("Kein bestehender Client gefunden - wird bei Bedarf erstellt");
                 }
-                
+
                 // WICHTIG: Client-Aktualisierung wird von ServiceSelectionForm durchgeführt
                 // Hier wird nur das Backup erstellt
             }
@@ -408,7 +383,8 @@ namespace AdGuardTrayApp
             {
                 throw new Exception($"Fehler beim Konfigurieren des Clients: {ex.Message}");
             }
-        }private async Task CreateNewClient()
+        }
+        private async Task CreateNewClient()
         {
             var addUrl = $"{config.AdGuardHost.TrimEnd('/')}/control/clients/add";
             var clientName = $"AutoAllow_{config.TargetClientIP.Replace('.', '_')}";
@@ -836,7 +812,37 @@ namespace AdGuardTrayApp
             }
         }
 
+        private void MainForm_Load(object sender, EventArgs e)
+        {
+            this.Visible = false;
+            this.Hide();
+        }
+
     }
+
+    // Klasse zur Speicherung der ursprünglichen Client-Einstellungen
+    public class ClientBackup
+    {
+        public string Name { get; set; } = "";
+        public string[] Ids { get; set; } = Array.Empty<string>();
+        public bool UseGlobalSettings { get; set; }
+        public bool FilteringEnabled { get; set; }
+        public bool ParentalEnabled { get; set; }
+        public bool SafebrowsingEnabled { get; set; }
+        public bool SafesearchEnabled { get; set; }
+        public bool UseGlobalBlockedServices { get; set; }
+        public string[] BlockedServices { get; set; } = Array.Empty<string>();
+        public string[] Tags { get; set; } = Array.Empty<string>();
+        public string[] Upstreams { get; set; } = Array.Empty<string>();
+    }
+
+    // Klasse zur Speicherung der ursprünglichen globalen AdGuard-Einstellungen
+    public class AdGuardBackup
+    {
+        public string[] BlockedServicesIds { get; set; } = Array.Empty<string>();
+        public string[] CustomFilterRules { get; set; } = Array.Empty<string>();
+    }
+
     public class AdGuardConfig
     {
         public string AdGuardHost { get; set; } = "";
