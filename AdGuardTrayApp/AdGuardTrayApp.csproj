@@ -1,4 +1,6 @@
-<Project Sdk="Microsoft.NET.Sdk">  <PropertyGroup>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
@@ -9,18 +11,21 @@
     <!-- Release properties -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishTrimmed>false</PublishTrimmed>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     
     <!-- Application properties -->
     <AssemblyTitle>AdGuard Tray App</AssemblyTitle>
     <AssemblyDescription>System tray application for AdGuard Home IP unblocking with Windows Hello authentication</AssemblyDescription>
     <AssemblyCompany>AdGuard Tray App</AssemblyCompany>
     <AssemblyProduct>AdGuard Tray App</AssemblyProduct>
-    <AssemblyCopyright>Copyright © 2025</AssemblyCopyright>    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <AssemblyCopyright>Copyright © 2025</AssemblyCopyright>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
-  </PropertyGroup><ItemGroup>
+  </PropertyGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Resources\*" />
   </ItemGroup>
     <ItemGroup>
