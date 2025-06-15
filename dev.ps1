@@ -56,7 +56,10 @@ function Invoke-GitCommit {
         [switch]$AllFiles = $false,
         
         [Parameter(Mandatory=$false)]
-        [switch]$SkipCopilot = $false
+        [switch]$SkipCopilot = $false,
+        
+        [Parameter(Mandatory=$false)]
+        [switch]$AutoConfirm = $false
     )
     
     Write-Info "Git Commit wird durchgeführt..."
@@ -103,17 +106,18 @@ function Invoke-GitCommit {
         Write-Error "Keine Commit-Nachricht und Copilot übersprungen!"
         return $false
     }
-    
-    # Commit-Nachricht anzeigen
+      # Commit-Nachricht anzeigen
     Write-Info "Commit-Nachricht:"
     Write-Host $commitMessage -ForegroundColor White
     
-    # Bestätigung
-    Write-Warning "Committen? (J/N)"
-    $confirm = Read-Host
-    if ($confirm -notmatch '^[jJyY]') {
-        Write-Info "Abgebrochen."
-        return $false
+    # Bestätigung (nur wenn nicht automatisch bestätigt)
+    if (-not $AutoConfirm) {
+        Write-Warning "Committen? (J/N)"
+        $confirm = Read-Host
+        if ($confirm -notmatch '^[jJyY]') {
+            Write-Info "Abgebrochen."
+            return $false
+        }
     }
     
     # Commit durchführen
@@ -147,7 +151,10 @@ function Invoke-Release {
         [switch]$DryRun = $false,
         
         [Parameter(Mandatory=$false)]
-        [switch]$Force = $false
+        [switch]$Force = $false,
+        
+        [Parameter(Mandatory=$false)]
+        [switch]$AutoConfirm = $false
     )
     
     Write-Info "Release wird durchgeführt (Version: $VersionType)..."
@@ -208,9 +215,8 @@ function Invoke-Release {
 ℹ️  Branch: $(git rev-parse --abbrev-ref HEAD)
 ────────────────────────────────────────
 "@ -ForegroundColor Yellow
-    
-    if (-not $Force) {
-        Write-Warning "Möchten Sie fortfahren? (J/N)"
+      if (-not $Force -and -not $AutoConfirm) {
+        Write-Warning "Release erstellen? (J/N)"
         $confirm = Read-Host
         if ($confirm -notmatch '^[jJyY]') {
             Write-Info "Abgebrochen."
@@ -279,41 +285,187 @@ switch ($Action) {
     "release" {
         Write-Info "Führe Release aus (Version: $Version)..."
         Invoke-Release -VersionType $Version -CustomMessage $Message -DryRun:$DryRun -Force:$Force
-    }
-    
-    "hotfix" {
+    }    "hotfix" {
         Write-Info "Hotfix-Workflow..."
         
-        # 1. Commit falls Änderungen vorhanden
+        # 1. Commit falls Änderungen vorhanden (zeige Message, aber noch nicht committen)
         $status = git status --porcelain
+        $commitMessage = ""
         if ($status) {
-            $success = Invoke-GitCommit -CustomMessage $Message -AllFiles:$true -SkipCopilot:$SkipCopilot
-            if (-not $success) {
-                Write-Error "Commit fehlgeschlagen, Hotfix abgebrochen"
+            # Generiere Commit-Message und zeige sie an
+            if ($Message) {
+                $commitMessage = $Message
+            } elseif (-not $SkipCopilot) {
+                try {
+                    # Dateien stagen für Copilot-Analyse
+                    git add .
+                    Write-Info "Alle Dateien gestaged"
+                    
+                    $prompt = Get-CommitPromptForChanges -CommitType "general"
+                    $copilotMessage = Get-GitCopilotCommitMessage -Prompt $prompt
+                    $commitMessage = $copilotMessage
+                    Write-Success "Copilot-Nachricht erhalten: $copilotMessage"
+                } catch {
+                    Write-Error "GitHub Copilot Fehler: $($_.Exception.Message)"
+                    Write-Info "Verwenden Sie -Message 'Ihre Nachricht' oder -SkipCopilot"
+                    exit 1
+                }
+            } else {
+                Write-Error "Keine Commit-Nachricht und Copilot übersprungen!"
+                exit 1
+            }
+            
+            Write-Info "Commit-Nachricht:"
+            Write-Host $commitMessage -ForegroundColor White
+        }
+        
+        # 2. Hole Release-Informationen und zeige Zusammenfassung
+        $projectFile = "AdGuardTrayApp/AdGuardTrayApp.csproj"
+        $content = Get-Content $projectFile -Raw
+        if ($content -match '<Version>(\d+\.\d+\.\d+)</Version>') {
+            $currentVersion = $matches[1]
+        } else {
+            Write-Error "Keine Version in Projektdatei gefunden"
+            exit 1
+        }
+        
+        $versionParts = $currentVersion -split '\.'
+        $versionParts[2] = [int]$versionParts[2] + 1
+        $newVersion = $versionParts -join '.'
+        $newTag = "v$newVersion"
+        
+        # 3. Zeige komplette Zusammenfassung
+        Write-Host @"
+🚀 Hotfix-Zusammenfassung:
+════════════════════════════════════════
+ℹ️  Aktuelle Version: $currentVersion
+ℹ️  Neue Version: $newVersion
+ℹ️  Version Type: patch
+ℹ️  Tag: $newTag
+ℹ️  Branch: $(git rev-parse --abbrev-ref HEAD)
+────────────────────────────────────────
+"@ -ForegroundColor Yellow
+        
+        # 4. JETZT die kombinierte Bestätigung
+        if (-not $Force -and -not $DryRun) {
+            Write-Warning "Committen und Hotfix-Release erstellen? (J/N)"
+            $confirm = Read-Host
+            if ($confirm -notmatch '^[jJyY]') {
+                Write-Info "Abgebrochen."
+                exit 0
+            }
+        }
+        
+        if ($DryRun) {
+            Write-Warning "DRY RUN - Keine Änderungen würden gemacht"
+            exit 0
+        }
+        
+        # 5. Jetzt alles ausführen (automatisch)
+        if ($status) {
+            try {
+                git commit -m $commitMessage
+                Write-Success "Commit erfolgreich erstellt"
+            } catch {
+                Write-Error "Fehler beim Committen: $($_.Exception.Message)"
                 exit 1
             }
         }
         
-        # 2. Patch Release
-        Invoke-Release -VersionType "patch" -Force:$Force -DryRun:$DryRun
+        # 6. Release erstellen (automatisch)
+        Invoke-Release -VersionType "patch" -Force:$true -AutoConfirm:$true
     }
-    
-    "feature" {
+      "feature" {
         Write-Info "Feature-Workflow..."
         
-        # 1. Commit falls Änderungen vorhanden  
+        # 1. Commit falls Änderungen vorhanden (zeige Message, aber noch nicht committen)
         $status = git status --porcelain
+        $commitMessage = ""
         if ($status) {
-            $success = Invoke-GitCommit -CustomMessage $Message -AllFiles:$true -SkipCopilot:$SkipCopilot
-            if (-not $success) {
-                Write-Error "Commit fehlgeschlagen, Feature abgebrochen"
+            # Generiere Commit-Message und zeige sie an
+            if ($Message) {
+                $commitMessage = $Message
+            } elseif (-not $SkipCopilot) {
+                try {
+                    # Dateien stagen für Copilot-Analyse
+                    git add .
+                    Write-Info "Alle Dateien gestaged"
+                    
+                    $prompt = Get-CommitPromptForChanges -CommitType "general"
+                    $copilotMessage = Get-GitCopilotCommitMessage -Prompt $prompt
+                    $commitMessage = $copilotMessage
+                    Write-Success "Copilot-Nachricht erhalten: $copilotMessage"
+                } catch {
+                    Write-Error "GitHub Copilot Fehler: $($_.Exception.Message)"
+                    Write-Info "Verwenden Sie -Message 'Ihre Nachricht' oder -SkipCopilot"
+                    exit 1
+                }
+            } else {
+                Write-Error "Keine Commit-Nachricht und Copilot übersprungen!"
+                exit 1
+            }
+            
+            Write-Info "Commit-Nachricht:"
+            Write-Host $commitMessage -ForegroundColor White
+        }
+        
+        # 2. Hole Release-Informationen und zeige Zusammenfassung
+        $projectFile = "AdGuardTrayApp/AdGuardTrayApp.csproj"
+        $content = Get-Content $projectFile -Raw
+        if ($content -match '<Version>(\d+\.\d+\.\d+)</Version>') {
+            $currentVersion = $matches[1]
+        } else {
+            Write-Error "Keine Version in Projektdatei gefunden"
+            exit 1
+        }
+        
+        $versionParts = $currentVersion -split '\.'
+        $versionParts[1] = [int]$versionParts[1] + 1
+        $versionParts[2] = 0
+        $newVersion = $versionParts -join '.'
+        $newTag = "v$newVersion"
+        
+        # 3. Zeige komplette Zusammenfassung
+        Write-Host @"
+🚀 Feature-Zusammenfassung:
+════════════════════════════════════════
+ℹ️  Aktuelle Version: $currentVersion
+ℹ️  Neue Version: $newVersion
+ℹ️  Version Type: minor
+ℹ️  Tag: $newTag
+ℹ️  Branch: $(git rev-parse --abbrev-ref HEAD)
+────────────────────────────────────────
+"@ -ForegroundColor Yellow
+        
+        # 4. JETZT die kombinierte Bestätigung
+        if (-not $Force -and -not $DryRun) {
+            Write-Warning "Committen und Feature-Release erstellen? (J/N)"
+            $confirm = Read-Host
+            if ($confirm -notmatch '^[jJyY]') {
+                Write-Info "Abgebrochen."
+                exit 0
+            }
+        }
+        
+        if ($DryRun) {
+            Write-Warning "DRY RUN - Keine Änderungen würden gemacht"
+            exit 0
+        }
+        
+        # 5. Jetzt alles ausführen (automatisch)
+        if ($status) {
+            try {
+                git commit -m $commitMessage
+                Write-Success "Commit erfolgreich erstellt"
+            } catch {
+                Write-Error "Fehler beim Committen: $($_.Exception.Message)"
                 exit 1
             }
         }
         
-        # 2. Minor Release
-        Invoke-Release -VersionType "minor" -Force:$Force -DryRun:$DryRun
-    }    "status" {
+        # 6. Release erstellen (automatisch)
+        Invoke-Release -VersionType "minor" -Force:$true -AutoConfirm:$true
+    }"status" {
         Write-Info "Git Status..."
         git status
         Write-Info "Git Log (letzte 5 Commits)..."
