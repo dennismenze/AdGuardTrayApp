@@ -174,69 +174,95 @@ if ($latestTag) {
     }
 }
 
-# GitHub Copilot für Commit-Nachricht verwenden
+# Commit-Nachricht erstellen
 $commitMessage = ""
 
-if (-not $SkipCopilot -and (Get-Command "gh" -ErrorAction SilentlyContinue)) {
-    Write-Step "GitHub Copilot für Release-Commit-Nachricht..."
-    
-    try {
-        # Git diff für Copilot erstellen
-        $stagedChanges = git diff --cached --name-status
-        if (-not $stagedChanges) {
-            # Falls nichts gestaged ist, stage die Projektdatei
-            if (-not $DryRun) {
-                git add $ProjectFile
-            }
-            $stagedChanges = "M    $ProjectFile"
-        }
-        
-        # Erstelle einen Release-spezifischen Prompt
-        $prompt = "Git commit message for release version $newVersion ($VersionType bump from $currentVersion). Changes: $($stagedChanges -join ', ') - Use German with emoji format: 📦 release: Version $newVersion"
-        
-        Write-Host ""
-        Write-Host "🤖 GitHub Copilot wird für Release-Nachricht gestartet..." -ForegroundColor Cyan
-        Write-Host "Prompt: $prompt" -ForegroundColor Gray
-        Write-Host "Folgen Sie den Anweisungen von Copilot und wählen Sie eine passende Release-Nachricht aus." -ForegroundColor Yellow
-        Write-Host ""
-        
-        # Starte Copilot interaktiv
-        & gh copilot suggest $prompt
-        
-        Write-Host ""
-        Write-Info "Hat Copilot eine brauchbare Release-Nachricht vorgeschlagen? (J/N)"
-        $useCopilot = Read-Host
-        
-        if ($useCopilot -match '^[jJyY]') {
-            Write-Info "Geben Sie die gewählte Release-Commit-Nachricht ein:"
-            $commitMessage = Read-Host
-            
-            if ($commitMessage) {
-                $commitMessage += "`n`nCo-authored-by: GitHub Copilot <copilot@github.com>"
-                Write-Success "Copilot Release-Nachricht übernommen!"
-            }
-        }
-        
-    } catch {
-        Write-Warning "GitHub Copilot nicht verfügbar oder Fehler: $($_.Exception.Message)"
-        $SkipCopilot = $true
-    }
-}
-
-# Fallback: Manuelle oder Standard-Commit-Nachricht
-if (-not $commitMessage -or $SkipCopilot) {
-    if ($CustomMessage) {
-        $commitMessage = $CustomMessage
-    } else {
-        $commitMessage = @"
+# Intelligente Standard-Release-Nachricht
+$defaultMessage = @"
 📦 release: Version $newVersion
 
-- Version bump von $currentVersion auf $newVersion ($VersionType)
-- Bereit für automatisches Release-Deployment
-- Aktualisierte Projektdatei mit neuer Versionsnummer$changesSinceLastTag
+- $VersionType bump von $currentVersion auf $newVersion
+- Bereit für Release-Deployment
+- AdGuard Tray App Release
 "@
+
+if (-not $SkipCopilot -and (Get-Command "gh" -ErrorAction SilentlyContinue)) {
+    Write-Step "GitHub Copilot für Release-Commit-Nachricht verfügbar..."
+    
+    Write-Host ""
+    Write-Host "Standard Release-Nachricht:" -ForegroundColor Yellow
+    Write-Host $defaultMessage -ForegroundColor Gray
+    Write-Host ""
+    
+    Write-Info "Möchten Sie GitHub Copilot für eine bessere Commit-Nachricht verwenden? (J/N)"
+    $useCopilot = Read-Host
+    
+    if ($useCopilot -match '^[jJyY]') {
+        try {
+            Write-Host ""
+            Write-Host "🤖 Verwende GitHub Copilot für Release-Nachricht..." -ForegroundColor Cyan
+            
+            # Erstelle Release-spezifischen Prompt
+            $prompt = "Git commit message for release version $newVersion ($VersionType bump from $currentVersion). Use German with emoji format: 📦 release: Version $newVersion"
+            
+            # Automatisierte Copilot-Eingabe
+            $copilotInput = @"
+git command
+$prompt
+"@
+            
+            # Führe Copilot mit automatischer Eingabe aus
+            $copilotOutput = $copilotInput | gh copilot suggest 2>$null
+            
+            if ($copilotOutput -and $copilotOutput -match "git commit") {
+                Write-Host ""
+                Write-Host "Copilot Vorschlag:" -ForegroundColor Green
+                $copilotOutput | ForEach-Object { 
+                    if ($_ -match 'git commit -m') {
+                        Write-Host $_ -ForegroundColor Yellow
+                    }
+                }
+                Write-Host ""
+                  # Extrahiere Commit-Message
+                if ($copilotOutput -match 'git commit -m ["''](.+?)["'']') {
+                    $suggestedMessage = $matches[1]
+                    Write-Info "Vorgeschlagene Nachricht: $suggestedMessage"
+                    Write-Info "Diese Release-Nachricht verwenden? (J/N)"
+                    $useMessage = Read-Host
+                    
+                    if ($useMessage -match '^[jJyY]') {
+                        $commitMessage = $suggestedMessage + "`n`nCo-authored-by: GitHub Copilot <copilot@github.com>"
+                        Write-Success "Copilot Release-Nachricht übernommen!"
+                    } else {
+                        $commitMessage = $defaultMessage
+                        Write-Info "Standard Release-Nachricht verwendet"
+                    }
+                } else {
+                    Write-Warning "Konnte Commit-Message nicht extrahieren. Standard wird verwendet."
+                    $commitMessage = $defaultMessage
+                }
+            } else {
+                Write-Warning "Keine brauchbare Copilot-Antwort. Standard wird verwendet."
+                $commitMessage = $defaultMessage
+            }
+            
+        } catch {
+            Write-Warning "GitHub Copilot Fehler: $($_.Exception.Message)"
+            $commitMessage = $defaultMessage
+        }
+    } else {
+        $commitMessage = $defaultMessage
+        Write-Info "Standard Release-Nachricht verwendet"
     }
-    Write-Info "Verwende $(if ($CustomMessage) { 'benutzerdefinierte' } else { 'Standard' })-Commit-Nachricht"
+} else {
+    $commitMessage = $defaultMessage
+    Write-Info "Standard Release-Nachricht verwendet (GitHub CLI nicht verfügbar)"
+}
+
+# Falls benutzerdefinierte Nachricht
+if ($CustomMessage) {
+    $commitMessage = $CustomMessage
+    Write-Info "Benutzerdefinierte Commit-Nachricht verwendet"
 }
 
 # Bestätigung anzeigen

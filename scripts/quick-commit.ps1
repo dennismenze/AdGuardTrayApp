@@ -70,73 +70,140 @@ if ($All) {
 $commitMessage = ""
 
 if (-not $SkipCopilot -and -not $Message) {
-    Write-Info "Versuche GitHub Copilot für Commit-Nachricht..."
+    # Staged Changes anzeigen
+    $stagedFiles = git diff --cached --name-status
     
-    try {
-        # Staged Changes anzeigen
-        $stagedFiles = git diff --cached --name-status
+    Write-Info "Staged Changes:"
+    $stagedFiles | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    
+    # GitHub CLI Copilot verwenden - Pflicht, kein Fallback
+    if (-not (Get-Command "gh" -ErrorAction SilentlyContinue)) {
+        Write-Error "GitHub CLI nicht gefunden! Installiere mit: winget install GitHub.cli"
+        exit 1
+    }
+      Write-Host "🤖 Verwende GitHub Copilot..." -ForegroundColor Cyan
+      # Erstelle einen detaillierten Git-spezifischen Prompt
+    $changedFilesText = ($stagedFiles | ForEach-Object { $_ }) -join ', '
+    
+    # Hole detaillierte Diff-Informationen für besseren Kontext
+    $diffSummary = git diff --cached --stat --summary 2>$null
+    $diffLines = git diff --cached --unified=1 2>$null | Select-Object -First 20
+    
+    # Erstelle einen präzisen Prompt mit Kontext
+    $prompt = @"
+Create a specific German git commit message with emoji for these changes:
+
+Files changed: $changedFilesText
+
+Diff summary:
+$($diffSummary -join "`n")
+
+Code changes context:
+$($diffLines -join "`n")
+
+Requirements:
+- Use German language
+- Start with appropriate emoji (🚀 feat, 🐛 fix, 🔧 config, 📝 docs, 🎨 style, ♻️ refactor)
+- Be specific about what was changed, not just which files
+- Use conventional commit format: "emoji type: specific description"
+- Keep under 72 characters for the first line
+"@
+      try {
+        # Verwende Start-Process für korrekte stdin-Übertragung
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = "gh"
+        $psi.Arguments = "copilot suggest -t git `"$prompt`""
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardInput = $true
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
         
-        Write-Info "Staged Changes:"
-        $stagedFiles | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $psi
+        $process.Start()
         
-        # GitHub CLI Copilot verwenden
-        if (Get-Command "gh" -ErrorAction SilentlyContinue) {
-            Write-Info "GitHub Copilot für Commit-Nachricht..."
+        # Sende "1" + Enter für "Copy command to clipboard"
+        $process.StandardInput.WriteLine("1")
+        $process.StandardInput.Close()
+        
+        # Lese Ausgabe
+        $stdout = $process.StandardOutput.ReadToEnd()
+        $stderr = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        
+        $copilotResult = @()
+        if ($stdout) { $copilotResult += $stdout -split "`n" }
+        if ($stderr) { $copilotResult += $stderr -split "`n" }if ($copilotResult) {
+            # Konvertiere Array zu String für besseres Parsing
+            $copilotText = $copilotResult -join " "
             
-            # Erstelle einen simplen Prompt
-            $prompt = "Git commit message for these changes: $($stagedFiles -join ', ') - Use German with emoji and conventional commits format"
+            # Verschiedene Patterns für Commit-Messages
+            $patterns = @(
+                'git commit -m ["'']([^"'']+)["'']',  # Einfache Message
+                'git commit -m ["''](.+?)["''] -m ["''](.+?)["'']',  # Multi-line Message
+                '# Suggestion:\s*git commit -m ["'']([^"'']+)["'']'  # Mit Suggestion Header
+            )
             
-            Write-Host ""
-            Write-Host "🤖 GitHub Copilot wird gestartet..." -ForegroundColor Cyan
-            Write-Host "Prompt: $prompt" -ForegroundColor Gray
-            Write-Host "Folgen Sie den Anweisungen von Copilot und wählen Sie eine passende Nachricht aus." -ForegroundColor Yellow
-            Write-Host ""
-            
-            # Starte Copilot interaktiv
-            & gh copilot suggest $prompt
-            
-            Write-Host ""
-            Write-Info "Hat Copilot eine brauchbare Commit-Nachricht vorgeschlagen? (J/N)"
-            $useCopilot = Read-Host
-            
-            if ($useCopilot -match '^[jJyY]') {
-                Write-Info "Geben Sie die gewählte Commit-Nachricht ein:"
-                $commitMessage = Read-Host
-                
-                if ($commitMessage) {
-                    $commitMessage += "`n`nCo-authored-by: GitHub Copilot <copilot@github.com>"
-                    Write-Success "Copilot-Nachricht übernommen!"
+            foreach ($pattern in $patterns) {
+                if ($copilotText -match $pattern) {
+                    $suggestedMessage = $matches[1]
+                    
+                    # Fix Encoding-Probleme (ersetze kaputte Emoji-Codes)
+                    $suggestedMessage = $suggestedMessage -replace '­ƒÜÇ', '🚀'
+                    $suggestedMessage = $suggestedMessage -replace '├ä', 'Ä'
+                    $suggestedMessage = $suggestedMessage -replace '├╝', 'ü'
+                    $suggestedMessage = $suggestedMessage -replace '├ñ', 'ö'
+                    $suggestedMessage = $suggestedMessage -replace 'Ã¤', 'ä'
+                    $suggestedMessage = $suggestedMessage -replace 'Ã¼', 'ü'
+                    $suggestedMessage = $suggestedMessage -replace 'Ã¶', 'ö'
+                    
+                    # Falls Multi-line Message, füge zweite Zeile hinzu
+                    if ($matches.Count -gt 2 -and $matches[2]) {
+                        $secondLine = $matches[2] -replace '├ä', 'Ä' -replace '├╝', 'ü' -replace '├ñ', 'ö'
+                        $commitMessage = $suggestedMessage + "`n`n" + $secondLine + "`n`nCo-authored-by: GitHub Copilot <copilot@github.com>"
+                    } else {
+                        $commitMessage = $suggestedMessage + "`n`nCo-authored-by: GitHub Copilot <copilot@github.com>"
+                    }
+                    
+                    Write-Success "Copilot-Nachricht erhalten: $suggestedMessage"
+                    break
                 }
             }
-        } else {
-            Write-Warning "GitHub CLI nicht gefunden. Installiere mit: winget install GitHub.cli"
+            
+            # Fallback: Suche nach anderen Commit-Message Patterns
+            if (-not $commitMessage) {
+                foreach ($line in $copilotResult) {
+                    if ($line -match '^[🚀🐛🔧📝🎨♻️].*:.*' -and $line.Length -gt 10 -and $line.Length -lt 150) {
+                        $cleanLine = $line -replace '­ƒÜÇ', '🚀' -replace '├ä', 'Ä' -replace '├╝', 'ü'
+                        $commitMessage = $cleanLine + "`n`nCo-authored-by: GitHub Copilot <copilot@github.com>"
+                        Write-Success "Copilot-Nachricht gefunden: $cleanLine"
+                        break
+                    }
+                }
+            }
+        }
+        
+        if (-not $commitMessage) {
+            Write-Error "Keine brauchbare Commit-Message von Copilot erhalten"
+            Write-Info "Copilot Ausgabe war: $($copilotResult -join '; ')"
+            exit 1
         }
         
     } catch {
-        Write-Warning "GitHub Copilot Fehler: $($_.Exception.Message)"
+        Write-Error "GitHub Copilot Fehler: $($_.Exception.Message)"
+        exit 1
     }
 }
 
-# Fallback: Manuelle Eingabe
+# Fallback: Nur wenn explizit eine Nachricht übergeben wurde
 if (-not $commitMessage) {
     if ($Message) {
         $commitMessage = $Message
     } else {
-        Write-Info "GitHub Copilot Template (.copilot/commit-messages.md):"
-        Write-Host "🚀 feat: Neue Features" -ForegroundColor Green
-        Write-Host "🐛 fix: Bugfixes" -ForegroundColor Green  
-        Write-Host "🔧 config: Konfigurationsänderungen" -ForegroundColor Green
-        Write-Host "📝 docs: Dokumentation" -ForegroundColor Green
-        Write-Host "🎨 style: Code-Formatierung" -ForegroundColor Green
-        Write-Host "♻️ refactor: Code-Refactoring" -ForegroundColor Green
-        Write-Host ""
-        Write-Info "Commit-Nachricht eingeben:"
-        $commitMessage = Read-Host
-        
-        if (-not $commitMessage) {
-            Write-Error "Keine Commit-Nachricht eingegeben!"
-            exit 1
-        }
+        Write-Error "Keine Commit-Nachricht von Copilot erhalten und keine manuelle Nachricht übergeben!"
+        Write-Info "Verwenden Sie -Message 'Ihre Nachricht' oder -SkipCopilot für manuelle Eingabe"
+        exit 1
     }
 }
 
