@@ -18,13 +18,15 @@ A Windows 11 System Tray application for automatic control of AdGuard Home with 
 ## New in this Version
 
 ### ✨ Automatic IP Detection
+
 - **Smart Network Detection**: Automatically finds your local network IP address (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
 - **One-Click Update**: 🔍 button next to the IP field for instant IP detection
 - **Fallback Support**: Gracefully handles network detection errors with sensible defaults
 
 ### 🎨 Professional Icons
+
 - **Modern Shield Design**: AdGuard-inspired shield icons with gradient effects
-- **Status Indicators**: 
+- **Status Indicators**:
   - 🔴 Red shield with lock icon = Blocked state
   - 🟢 Green shield with checkmark = Unblocked state
 - **High-Quality Rendering**: Anti-aliased, 32x32 pixel icons for crisp display
@@ -60,86 +62,65 @@ On first start or via the context menu, the following settings can be configured
 - **AdGuard Host**: URL of the AdGuard Home server (e.g., `http://192.168.178.30:3000/`)
 - **Username**: AdGuard Home username
 - **Password**: AdGuard Home password
-- **Target IP**: IP address to be unblocked (automatically detected or manually set)
+- **Target IP**: IP address to be unblocked (default: current device IP)
 - **Duration**: Unblocking duration in minutes (default: 60)
-- **Autostart**: Automatically start with Windows
-
-### IP Address Configuration
-The app now automatically detects your local network IP address when the configuration dialog opens. You can:
-- Use the automatically detected IP (recommended)
-- Click the 🔍 button to re-detect your IP address
-- Manually enter a different IP address if needed
 
 ## Advanced Features
 
-### Service Selection
-- Interactive dialog showing all available blocked services
-- Real-time status updates
-- Service-specific unblocking with visual indicators
+### Service Selection Dialog
 
-### Security Features
-- Windows Hello integration for secure access
-- Automatic settings backup and restoration
-- Prevention of unauthorized configuration changes
+After authentication, a detailed dialog opens with two tabs:
+
+#### Blocked Services
+
+- List of all services blocked by AdGuard
+- Selective choice for temporary unblocking
+
+#### Custom Filter Rules
+
+- Management of app-specific rules with the tag `#ADGUARD_TRAY_APP`
+- Status display: ✅ Active and ⏸️ disabled rules
+- Temporary deactivation of individual rules
+
+### Backup & Restore System
+
+- Automatic backup of all original settings before changes
+- Complete restoration after timer expiration
 
 ## Usage
 
-### Basic Operation
 1. **Unlock**: Click on tray icon → Windows Hello authentication → Service selection dialog
-2. **Service Selection**: Choose which blocked services to temporarily unblock
-3. **Automatic Lock**: Services are automatically re-blocked after the timer expires
+2. **Service Selection**:
+   - Choose specific blocked services for unblocking
+   - Manage custom filter rules
+3. **Automatic Reset**: After time expires, all changes are automatically reverted
 
-### Context Menu
-Right-click the tray icon for:
-- Configuration settings
-- Manual lock/unlock toggle
-- Application exit
+## Technical Details
 
-## Architecture
-
-The application consists of several key components:
-
-- `MainForm.cs`: Main application logic and tray icon management
-- `ConfigurationForm.cs`: Settings dialog with automatic IP detection
-- `ServiceSelectionForm.cs`: Service selection interface
-- `AdGuardApiService.cs`: AdGuard Home API integration
-- `Program.cs`: Application entry point with single instance protection
+- **Framework**: .NET 8.0 Windows Forms
+- **Architecture**:
+  - `MainForm.cs`: Main application logic and tray icon management
+  - `AdGuardApiService.cs`: AdGuard Home API integration
+  - `ServiceSelectionForm.cs`: Dialog for service selection and filter rules
+  - `ConfigurationForm.cs`: Configuration dialog
+  - `Program.cs`: Application startup with single-instance protection
+- **API**: AdGuard Home REST API with Basic Authentication
+- **Authentication**: Windows Credential UI (CredUI) for Windows Hello
+- **Client Management**: Creates and manages temporary "AutoAllow_" clients in AdGuard
 
 ## Development
 
-### Building from Source
 ```powershell
+# Clone project and compile
 git clone <repository-url>
 cd AdGuardTrayApp
-dotnet restore
-dotnet build --configuration Release
+dotnet build
+
+# Start debug mode
+dotnet run
 ```
-
-### Requirements for Development
-- Visual Studio 2022 or VS Code
-- .NET 8.0 SDK
-- Windows SDK (for Windows Hello APIs)
-
-## Troubleshooting
-
-### Common Issues
-1. **IP Detection Failed**: Check network connectivity and try manual IP entry
-2. **AdGuard Connection Error**: Verify AdGuard Home server URL and credentials
-3. **Windows Hello Not Available**: Ensure Windows Hello is set up on your device
-
-### Debug Mode
-The application includes comprehensive logging for troubleshooting. Check the debug output for detailed information about API calls and network operations.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Acknowledgments
-
-- AdGuard Home team for the excellent filtering solution
-- Microsoft for Windows Hello integration APIs
-- .NET community for framework support
+This project is released under the MIT License.
+# AdGuardTrayApp

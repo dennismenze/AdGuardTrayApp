@@ -44,6 +44,7 @@ namespace AdGuardTrayApp
             this.txtTargetIP = new System.Windows.Forms.TextBox();
             this.numDuration = new System.Windows.Forms.NumericUpDown();
             this.chkAutostart = new System.Windows.Forms.CheckBox();
+            this.btnDetectIP = new System.Windows.Forms.Button();
             this.btnTest = new System.Windows.Forms.Button();
             this.btnOK = new System.Windows.Forms.Button();
             this.btnCancel = new System.Windows.Forms.Button();
@@ -121,8 +122,18 @@ namespace AdGuardTrayApp
             // 
             this.txtTargetIP.Location = new System.Drawing.Point(140, 102);
             this.txtTargetIP.Name = "txtTargetIP";
-            this.txtTargetIP.Size = new System.Drawing.Size(230, 27);
+            this.txtTargetIP.Size = new System.Drawing.Size(180, 27);
             this.txtTargetIP.TabIndex = 7;
+            // 
+            // btnDetectIP
+            // 
+            this.btnDetectIP.Location = new System.Drawing.Point(325, 102);
+            this.btnDetectIP.Name = "btnDetectIP";
+            this.btnDetectIP.Size = new System.Drawing.Size(45, 27);
+            this.btnDetectIP.TabIndex = 8;
+            this.btnDetectIP.Text = "🔍";
+            this.btnDetectIP.UseVisualStyleBackColor = true;
+            this.btnDetectIP.Click += new System.EventHandler(this.BtnDetectIP_Click);
             // 
             // numDuration
             // 
@@ -201,6 +212,7 @@ namespace AdGuardTrayApp
             this.Controls.Add(this.chkAutostart);
             this.Controls.Add(this.numDuration);
             this.Controls.Add(lblDuration);
+            this.Controls.Add(this.btnDetectIP);
             this.Controls.Add(this.txtTargetIP);
             this.Controls.Add(lblTargetIP);
             this.Controls.Add(this.txtPassword);
@@ -228,6 +240,7 @@ namespace AdGuardTrayApp
         private System.Windows.Forms.TextBox txtTargetIP;
         private System.Windows.Forms.NumericUpDown numDuration;
         private System.Windows.Forms.CheckBox chkAutostart;
+        private System.Windows.Forms.Button btnDetectIP;
         private System.Windows.Forms.Button btnTest;
         private System.Windows.Forms.Button btnOK;
         private System.Windows.Forms.Button btnCancel;

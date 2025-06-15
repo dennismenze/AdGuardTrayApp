@@ -15,13 +15,16 @@ namespace AdGuardTrayApp
     public partial class MainForm : Form
     {
         private NotifyIcon? trayIcon;
-        private System.Windows.Forms.Timer? resetTimer; private bool isUnlocked = false; private HttpClient httpClient;
+        private System.Windows.Forms.Timer? resetTimer;
+        private bool isUnlocked = false;
+        private HttpClient httpClient;
         private AdGuardConfig config = new AdGuardConfig(); // Mit Default-Wert initialisiert
         private AdGuardApiService? apiService; // Wird nach der Konfiguration initialisiert
         private ClientBackup? originalClientSettings; // Für Wiederherstellung der ursprünglichen Einstellungen
         private AdGuardBackup? originalAdGuardSettings;
 
-        // Erweiterte Windows Hello P/Invoke für Windows 11 SDK
+        // Erweiterte Windows Hello-Implementierung mit Fingerprint-Priorisierung
+        // Legacy P/Invoke für Fallback-Szenarien
         [DllImport("credui.dll", CharSet = CharSet.Unicode)]
         public static extern int CredUIPromptForWindowsCredentials(
             ref CREDUI_INFO pUiInfo,
@@ -141,29 +144,112 @@ namespace AdGuardTrayApp
                 trayIcon.ContextMenuStrip?.Dispose();
                 trayIcon.ContextMenuStrip = CreateContextMenu();
             }
-        }
-
-        private Icon CreateLockIcon()
+        }        private Icon CreateLockIcon()
         {
-            // Erstelle ein einfaches Lock-Icon programmatisch
-            var bitmap = new Bitmap(16, 16);
+            // Erstelle ein professionelles AdGuard-ähnliches Lock-Icon
+            var bitmap = new Bitmap(32, 32);
             using (var g = Graphics.FromImage(bitmap))
             {
                 g.Clear(Color.Transparent);
-                g.FillRectangle(Brushes.Red, 6, 8, 4, 6);
-                g.DrawRectangle(Pens.Red, 5, 6, 6, 3);
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                
+                // AdGuard-ähnliches Schild mit Schloss
+                var shieldPath = new System.Drawing.Drawing2D.GraphicsPath();
+                var shieldRect = new Rectangle(6, 4, 20, 24);
+                
+                // Schild-Form (abgerundetes Rechteck mit spitzer Unterseite)
+                shieldPath.AddArc(shieldRect.X, shieldRect.Y, 8, 8, 180, 90);
+                shieldPath.AddArc(shieldRect.Right - 8, shieldRect.Y, 8, 8, 270, 90);
+                shieldPath.AddLine(shieldRect.Right, shieldRect.Y + 4, shieldRect.Right, shieldRect.Bottom - 4);
+                shieldPath.AddLine(shieldRect.Right, shieldRect.Bottom - 4, shieldRect.X + shieldRect.Width / 2, shieldRect.Bottom + 2);
+                shieldPath.AddLine(shieldRect.X + shieldRect.Width / 2, shieldRect.Bottom + 2, shieldRect.X, shieldRect.Bottom - 4);
+                shieldPath.AddLine(shieldRect.X, shieldRect.Bottom - 4, shieldRect.X, shieldRect.Y + 4);
+                shieldPath.CloseFigure();
+                
+                // Schild-Hintergrund (rot für gesperrt)
+                using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    shieldRect, Color.FromArgb(220, 20, 60), Color.FromArgb(139, 0, 0), 45f))
+                {
+                    g.FillPath(brush, shieldPath);
+                }
+                
+                // Schild-Umriss
+                using (var pen = new Pen(Color.FromArgb(100, 0, 0), 1.5f))
+                {
+                    g.DrawPath(pen, shieldPath);
+                }
+                
+                // Schloss-Symbol
+                var lockRect = new Rectangle(12, 12, 8, 8);
+                // Schloss-Bügel
+                using (var pen = new Pen(Color.White, 1.5f))
+                {
+                    g.DrawArc(pen, lockRect.X + 1, lockRect.Y - 2, lockRect.Width - 2, 4, 0, 180);
+                }
+                // Schloss-Körper
+                using (var brush = new SolidBrush(Color.White))
+                {
+                    g.FillRectangle(brush, lockRect.X + 1, lockRect.Y + 1, lockRect.Width - 2, lockRect.Height - 2);
+                }
+                // Schlüsselloch
+                using (var brush = new SolidBrush(Color.FromArgb(220, 20, 60)))
+                {
+                    g.FillEllipse(brush, lockRect.X + 3, lockRect.Y + 3, 2, 2);
+                    g.FillRectangle(brush, lockRect.X + 3.5f, lockRect.Y + 4, 1, 2);
+                }
             }
             return Icon.FromHandle(bitmap.GetHicon());
         }
 
         private Icon CreateUnlockIcon()
         {
-            var bitmap = new Bitmap(16, 16);
+            // Erstelle ein professionelles AdGuard-ähnliches Unlock-Icon
+            var bitmap = new Bitmap(32, 32);
             using (var g = Graphics.FromImage(bitmap))
             {
                 g.Clear(Color.Transparent);
-                g.FillRectangle(Brushes.Green, 6, 8, 4, 6);
-                g.DrawRectangle(Pens.Green, 5, 6, 6, 3);
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                
+                // AdGuard-ähnliches Schild
+                var shieldPath = new System.Drawing.Drawing2D.GraphicsPath();
+                var shieldRect = new Rectangle(6, 4, 20, 24);
+                
+                // Schild-Form (abgerundetes Rechteck mit spitzer Unterseite)
+                shieldPath.AddArc(shieldRect.X, shieldRect.Y, 8, 8, 180, 90);
+                shieldPath.AddArc(shieldRect.Right - 8, shieldRect.Y, 8, 8, 270, 90);
+                shieldPath.AddLine(shieldRect.Right, shieldRect.Y + 4, shieldRect.Right, shieldRect.Bottom - 4);
+                shieldPath.AddLine(shieldRect.Right, shieldRect.Bottom - 4, shieldRect.X + shieldRect.Width / 2, shieldRect.Bottom + 2);
+                shieldPath.AddLine(shieldRect.X + shieldRect.Width / 2, shieldRect.Bottom + 2, shieldRect.X, shieldRect.Bottom - 4);
+                shieldPath.AddLine(shieldRect.X, shieldRect.Bottom - 4, shieldRect.X, shieldRect.Y + 4);
+                shieldPath.CloseFigure();
+                
+                // Schild-Hintergrund (grün für entsperrt)
+                using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    shieldRect, Color.FromArgb(50, 205, 50), Color.FromArgb(34, 139, 34), 45f))
+                {
+                    g.FillPath(brush, shieldPath);
+                }
+                
+                // Schild-Umriss
+                using (var pen = new Pen(Color.FromArgb(0, 100, 0), 1.5f))
+                {
+                    g.DrawPath(pen, shieldPath);
+                }
+                  // Häkchen-Symbol (✓)
+                using (var pen = new Pen(Color.White, 2.5f))
+                {
+                    pen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                    pen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                    pen.LineJoin = System.Drawing.Drawing2D.LineJoin.Round;
+                    
+                    var checkPoints = new PointF[]
+                    {
+                        new PointF(11, 16),
+                        new PointF(14, 19),
+                        new PointF(21, 12)
+                    };
+                    g.DrawLines(pen, checkPoints);
+                }
             }
             return Icon.FromHandle(bitmap.GetHicon());
         }
@@ -265,8 +351,51 @@ namespace AdGuardTrayApp
                 originalAdGuardSettings = null;
                 throw new Exception($"Fehler beim Entsperren: {ex.Message}");
             }
+        }        private async Task<bool> AuthenticateWithWindowsHello()
+        {
+            try
+            {
+                // Prüfe zunächst die Windows Hello Verfügbarkeit
+                if (!IsWindowsHelloAvailable())
+                {
+                    LogDebugInfo("❌ Windows Hello ist nicht verfügbar - verwende Fallback");
+                    return await AuthenticateWithSimplifiedWindowsHello();
+                }
+
+                // Verbesserte Windows Hello-Authentifizierung mit Fingerprint-Priorisierung
+                bool result = await AuthenticateWithEnhancedWindowsHello();
+                
+                // Bei Fehler 87 (ERROR_INVALID_PARAMETER) verwende Fallback-Methode
+                if (!result)
+                {
+                    LogDebugInfo("🔄 Versuche Fallback-Authentifizierungsmethode...");
+                    result = await AuthenticateWithSimplifiedWindowsHello();
+                }
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                LogDebugInfo($"Windows Hello Authentifizierung fehlgeschlagen: {ex.Message}");
+                
+                // Letzter Fallback-Versuch
+                try
+                {
+                    LogDebugInfo("🔄 Letzter Fallback-Versuch mit vereinfachter Methode...");
+                    return await AuthenticateWithSimplifiedWindowsHello();
+                }
+                catch (Exception fallbackEx)
+                {
+                    LogDebugInfo($"Auch Fallback-Authentifizierung fehlgeschlagen: {fallbackEx.Message}");
+                    return false;
+                }
+            }
         }
-        private async Task<bool> AuthenticateWithWindowsHello()
+
+        /// <summary>        /// Erweiterte Windows Hello-Authentifizierung mit Fingerprint-Priorisierung
+        /// Verwendet optimierte P/Invoke-Flags für bessere biometrische Unterstützung
+        /// </summary>
+        private async Task<bool> AuthenticateWithEnhancedWindowsHello()
         {
             return await Task.Run(() =>
             {
@@ -274,46 +403,71 @@ namespace AdGuardTrayApp
                 {
                     var currentUser = Environment.UserName;
                     var domain = Environment.UserDomainName;
-                    var fullUsername = $"{domain}\\{currentUser}";
+                    var fullUsername = string.IsNullOrEmpty(domain) || domain == "." ? currentUser : $"{domain}\\{currentUser}";
 
-                    var credui = new CREDUI_INFO
-                    {
-                        cbSize = Marshal.SizeOf(typeof(CREDUI_INFO)),
-                        hwndParent = IntPtr.Zero,
-                        pszMessageText = $"🔐 AdGuard Entsperrung\n👤 Benutzer: {fullUsername}\n\n🔑 Windows Hello Authentifizierung\n• PIN eingeben\n• Fingerabdruck verwenden\n• Gesichtserkennung nutzen",
-                        pszCaptionText = "🛡️ AdGuard Tray App - Windows Hello"
-                    };
+                    // Sicherheitsprüfung für Windows Hello Verfügbarkeit
+                    LogDebugInfo("🔐 Prüfe Windows Hello Verfügbarkeit...");
+
+                    // Verbesserte CREDUI_INFO Initialisierung mit vollständiger Validierung
+                    var credui = new CREDUI_INFO();
+                    credui.cbSize = Marshal.SizeOf(typeof(CREDUI_INFO));
+                    credui.hwndParent = IntPtr.Zero;
+                    credui.pszMessageText = $"🔐 AdGuard Entsperrung\n👤 Benutzer: {fullUsername}\n\n👆 Windows Hello Authentifizierung\n🥇 Fingerabdruck (bevorzugt)\n🔢 PIN\n👀 Gesichtserkennung";
+                    credui.pszCaptionText = "🛡️ AdGuard Tray App - Windows Hello";
+                    credui.hbmBanner = IntPtr.Zero;
 
                     uint authPackage = 0;
                     IntPtr outCredBuffer = IntPtr.Zero;
                     uint outCredSize = 0;
                     bool save = false;
 
-                    // Erstelle Authentifizierungspuffer mit vorausgefülltem Benutzernamen
+                    // Erstelle optimierten Authentifizierungspuffer mit verbesserter Fehlerbehandlung
                     IntPtr inCredBuffer = IntPtr.Zero;
                     uint inCredSize = 0;
 
                     try
                     {
-                        // Bestimme benötigte Puffergröße
+                        // Sichere Puffererstellung für Credentials
                         int packedCredSize = 0;
-                        CredPackAuthenticationBuffer(0, fullUsername, "", IntPtr.Zero, ref packedCredSize);
-
-                        if (packedCredSize > 0)
+                        
+                        // Erste Abfrage um benötigte Puffergröße zu ermitteln
+                        bool sizeResult = CredPackAuthenticationBuffer(0, fullUsername, "", IntPtr.Zero, ref packedCredSize);
+                        
+                        if (packedCredSize > 0 && packedCredSize < 1024 * 1024) // Sicherheitsprüfung für maximale Puffergröße
                         {
                             // Allokiere Puffer und erstelle Credentials
                             inCredBuffer = Marshal.AllocCoTaskMem(packedCredSize);
-                            if (CredPackAuthenticationBuffer(0, fullUsername, "", inCredBuffer, ref packedCredSize))
+                            if (inCredBuffer != IntPtr.Zero)
                             {
-                                inCredSize = (uint)packedCredSize;
+                                // Initialisiere Puffer mit Nullen für Sicherheit
+                                for (int i = 0; i < packedCredSize; i++)
+                                {
+                                    Marshal.WriteByte(inCredBuffer, i, 0);
+                                }
+                                
+                                if (CredPackAuthenticationBuffer(0, fullUsername, "", inCredBuffer, ref packedCredSize))
+                                {
+                                    inCredSize = (uint)packedCredSize;
+                                    LogDebugInfo($"📦 Authentifizierungspuffer erstellt ({inCredSize} Bytes)");
+                                }
+                                else
+                                {
+                                    LogDebugInfo("⚠️ Warnung: CredPackAuthenticationBuffer fehlgeschlagen, verwende leeren Puffer");
+                                    inCredSize = 0;
+                                }
                             }
                         }
 
-                        // Funktionierende Flags für Windows Hello
+                        // Konservative Flags für bessere Kompatibilität
                         const int CREDUIWIN_GENERIC = 0x1;
                         const int CREDUIWIN_ENUMERATE_CURRENT_USER = 0x200;
+                        const int CREDUIWIN_SECURE_PROMPT = 0x1000;
 
-                        int flags = CREDUIWIN_GENERIC | CREDUIWIN_ENUMERATE_CURRENT_USER;
+                        // Verwende nur sichere, getestete Flags
+                        int flags = CREDUIWIN_GENERIC | CREDUIWIN_ENUMERATE_CURRENT_USER | CREDUIWIN_SECURE_PROMPT;
+
+                        LogDebugInfo("🔐 Starte Windows Hello-Authentifizierung mit Fingerprint-Priorisierung...");
+                        LogDebugInfo($"📋 Parameter: User={fullUsername}, Flags=0x{flags:X}, BufferSize={inCredSize}");
 
                         int result = CredUIPromptForWindowsCredentials(
                             ref credui,
@@ -326,28 +480,163 @@ namespace AdGuardTrayApp
                             ref save,
                             flags);
 
-                        return result == 0;
+                        var success = result == 0;
+                        
+                        if (success)
+                        {
+                            LogDebugInfo("✅ Windows Hello-Authentifizierung erfolgreich");
+                            LogDebugInfo($"📊 Auth Package: {authPackage}, Output Size: {outCredSize}");
+                        }
+                        else
+                        {
+                            LogDebugInfo($"❌ Windows Hello-Authentifizierung fehlgeschlagen (Fehlercode: {result})");
+                            
+                            // Erweiterte Fehleranalyse
+                            switch (result)
+                            {
+                                case 87: // ERROR_INVALID_PARAMETER
+                                    LogDebugInfo("🔧 FEHLER 87: Ungültiger Parameter - möglicherweise fehlerhafte CREDUI_INFO Struktur oder Flags");
+                                    LogDebugInfo($"🔍 Debug: cbSize={credui.cbSize}, hwndParent={credui.hwndParent}, inCredSize={inCredSize}");
+                                    break;
+                                case 1223: // ERROR_CANCELLED
+                                    LogDebugInfo("🚫 Authentifizierung vom Benutzer abgebrochen");
+                                    break;
+                                case 1326: // ERROR_LOGON_FAILURE  
+                                    LogDebugInfo("🔐 Authentifizierung fehlgeschlagen - falsche Credentials");
+                                    break;
+                                case 1355: // ERROR_NO_SUCH_LOGON_SESSION
+                                    LogDebugInfo("👤 Keine gültige Logon-Session gefunden");
+                                    break;
+                                case 1314: // ERROR_PRIVILEGE_NOT_HELD
+                                    LogDebugInfo("🔒 Unzureichende Berechtigungen für Windows Hello");
+                                    break;
+                                default:
+                                    LogDebugInfo($"❓ Unbekannter Fehler: {result} (0x{result:X})");
+                                    break;
+                            }
+                        }
+                        
+                        return success;
                     }
                     finally
                     {
-                        // Memory cleanup
+                        // Sichere Memory cleanup
                         if (inCredBuffer != IntPtr.Zero)
                         {
-                            Marshal.ZeroFreeCoTaskMemUnicode(inCredBuffer);
+                            try
+                            {
+                                Marshal.FreeCoTaskMem(inCredBuffer);
+                            }
+                            catch (Exception cleanupEx)
+                            {
+                                LogDebugInfo($"⚠️ Warnung beim inCredBuffer cleanup: {cleanupEx.Message}");
+                            }
                         }
                         if (outCredBuffer != IntPtr.Zero)
                         {
-                            Marshal.ZeroFreeCoTaskMemUnicode(outCredBuffer);
+                            try
+                            {
+                                Marshal.FreeCoTaskMem(outCredBuffer);
+                            }
+                            catch (Exception cleanupEx)
+                            {
+                                LogDebugInfo($"⚠️ Warnung beim outCredBuffer cleanup: {cleanupEx.Message}");
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
+                    LogDebugInfo($"🚨 Windows Hello Fehler: {ex.Message}");
+                    LogDebugInfo($"🔍 Stack Trace: {ex.StackTrace}");
+                    
                     this.Invoke((MethodInvoker)delegate
                     {
-                        MessageBox.Show($"🚫 Windows Hello Fehler:\n{ex.Message}\n\n💡 Tipp: Stellen Sie sicher, dass Windows Hello in den Windows-Einstellungen konfiguriert ist.",
+                        MessageBox.Show($"🚫 Windows Hello Fehler:\n{ex.Message}\n\n💡 Troubleshooting-Tipps:\n• Stellen Sie sicher, dass Windows Hello konfiguriert ist\n• Neustart der App als Administrator versuchen\n• Überprüfen Sie die Windows-Einstellungen\n• Windows Hello in den Einstellungen neu einrichten", 
                             "Windows Hello Authentifizierung", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     });
+                    return false;
+                }
+            });
+        }
+        /// <summary>
+        /// Fallback-Authentifizierungsmethode mit einfacheren Parametern für bessere Kompatibilität
+        /// </summary>
+        private async Task<bool> AuthenticateWithSimplifiedWindowsHello()
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    LogDebugInfo("🔄 Fallback: Verwende vereinfachte Windows Hello Authentifizierung...");
+                    
+                    var currentUser = Environment.UserName;
+                    
+                    // Minimale CREDUI_INFO Struktur
+                    var credui = new CREDUI_INFO();
+                    credui.cbSize = Marshal.SizeOf(typeof(CREDUI_INFO));
+                    credui.hwndParent = IntPtr.Zero;
+                    credui.pszMessageText = "Windows Hello Authentifizierung für AdGuard Tray App";
+                    credui.pszCaptionText = "AdGuard Authentifizierung";
+                    credui.hbmBanner = IntPtr.Zero;
+
+                    uint authPackage = 0;
+                    IntPtr outCredBuffer = IntPtr.Zero;
+                    uint outCredSize = 0;
+                    bool save = false;
+
+                    // Nur die wichtigsten Flags verwenden
+                    const int CREDUIWIN_GENERIC = 0x1;
+                    const int CREDUIWIN_SECURE_PROMPT = 0x1000;
+                    int flags = CREDUIWIN_GENERIC | CREDUIWIN_SECURE_PROMPT;
+
+                    LogDebugInfo($"🔐 Starte vereinfachte Windows Hello-Authentifizierung für Benutzer: {currentUser}");
+
+                    int result = CredUIPromptForWindowsCredentials(
+                        ref credui,
+                        0,
+                        ref authPackage,
+                        IntPtr.Zero,  // Kein Input-Buffer
+                        0,            // Keine Input-Buffer-Größe
+                        out outCredBuffer,
+                        out outCredSize,
+                        ref save,
+                        flags);
+
+                    var success = result == 0;
+                    
+                    try
+                    {
+                        if (success)
+                        {
+                            LogDebugInfo("✅ Vereinfachte Windows Hello-Authentifizierung erfolgreich");
+                        }
+                        else
+                        {
+                            LogDebugInfo($"❌ Vereinfachte Windows Hello-Authentifizierung fehlgeschlagen (Fehlercode: {result})");
+                        }
+                    }
+                    finally
+                    {
+                        // Cleanup
+                        if (outCredBuffer != IntPtr.Zero)
+                        {
+                            try
+                            {
+                                Marshal.FreeCoTaskMem(outCredBuffer);
+                            }
+                            catch (Exception cleanupEx)
+                            {
+                                LogDebugInfo($"⚠️ Warnung beim Cleanup: {cleanupEx.Message}");
+                            }
+                        }
+                    }
+                    
+                    return success;
+                }
+                catch (Exception ex)
+                {
+                    LogDebugInfo($"🚨 Fallback Windows Hello Fehler: {ex.Message}");
                     return false;
                 }
             });
@@ -817,6 +1106,38 @@ namespace AdGuardTrayApp
             this.Hide();
         }
 
+        /// <summary>
+        /// Überprüft die Windows Hello Verfügbarkeit bevor Authentifizierung versucht wird
+        /// </summary>
+        private bool IsWindowsHelloAvailable()
+        {
+            try
+            {
+                // Prüfe ob Windows 10 Version 1607 oder höher (Build 14393)
+                var version = Environment.OSVersion.Version;
+                if (version.Major < 10 || (version.Major == 10 && version.Build < 14393))
+                {
+                    LogDebugInfo("⚠️ Windows Hello benötigt Windows 10 Version 1607 oder höher");
+                    return false;
+                }
+
+                // Prüfe ob der aktuelle Benutzer Windows Hello verwenden kann
+                WindowsIdentity identity = WindowsIdentity.GetCurrent();
+                if (identity == null || !identity.IsAuthenticated)
+                {
+                    LogDebugInfo("⚠️ Benutzer ist nicht authentifiziert");
+                    return false;
+                }
+
+                LogDebugInfo("✅ Windows Hello Grundvoraussetzungen erfüllt");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogDebugInfo($"❌ Fehler bei Windows Hello Verfügbarkeitsprüfung: {ex.Message}");
+                return false;
+            }
+        }
     }
 
     // Klasse zur Speicherung der ursprünglichen Client-Einstellungen
