@@ -15,11 +15,29 @@ function Get-GitCopilotCommitMessage {
         throw "GitHub CLI nicht gefunden! Installiere mit: winget install GitHub.cli"
     }
     
-    Write-Host "🤖 Verwende GitHub Copilot..." -ForegroundColor Cyan    try {
-        # Verwende Start-Process mit ArgumentList für korrekte Escaping
+    Write-Host "🤖 Verwende GitHub Copilot..." -ForegroundColor Cyan
+    
+    try {
+        # Bereinige den Prompt von problematischen Zeichen
+        $cleanPrompt = $Prompt -replace '"', "'" -replace '`', '' -replace '\r?\n', ' '
+        $cleanPrompt = $cleanPrompt -replace '\s+', ' ' # Mehrfache Leerzeichen entfernen
+        $cleanPrompt = $cleanPrompt.Trim()
+        
+        # Kürze den Prompt falls er zu lang ist
+        if ($cleanPrompt.Length -gt 200) {
+            $cleanPrompt = $cleanPrompt.Substring(0, 200) + "..."
+        }        
+        Write-Info "Verwendeter Prompt: $($cleanPrompt.Substring(0, [Math]::Min(50, $cleanPrompt.Length)))..."
+        
+        # Verwende Start-Process mit Array-Argumenten für bessere Escaping-Behandlung
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = "gh"
-        $psi.ArgumentList = @("copilot", "suggest", "-t", "git", $Prompt)
+        # Verwende ArgumentList anstatt Arguments String
+        $psi.ArgumentList.Add("copilot")
+        $psi.ArgumentList.Add("suggest")
+        $psi.ArgumentList.Add("-t")
+        $psi.ArgumentList.Add("git")
+        $psi.ArgumentList.Add($cleanPrompt)
         $psi.UseShellExecute = $false
         $psi.RedirectStandardInput = $true
         $psi.RedirectStandardOutput = $true
@@ -52,9 +70,9 @@ function Get-GitCopilotCommitMessage {
                 'git commit -m ["''](.+?)["''] -m ["''](.+?)["'']',  # Multi-line Message
                 '# Suggestion:\s*git commit -m ["'']([^"'']+)["'']'  # Mit Suggestion Header
             )
-            
-            foreach ($pattern in $patterns) {
-                if ($copilotText -match $pattern) {                    $suggestedMessage = $matches[1]
+              foreach ($pattern in $patterns) {
+                if ($copilotText -match $pattern) {
+                    $suggestedMessage = $matches[1]
                     
                     # Bereinige PowerShell-Artefakte und Encoding-Probleme
                     $suggestedMessage = $suggestedMessage -replace '^True\s*', ''  # Entferne "True" am Anfang
@@ -77,9 +95,9 @@ function Get-GitCopilotCommitMessage {
                     } else {
                         return $suggestedMessage
                     }
-                }
-            }
-              # Fallback: Suche nach anderen Commit-Message Patterns
+                }            }
+            
+            # Fallback: Suche nach anderen Commit-Message Patterns
             foreach ($line in $copilotResult) {
                 if ($line -match '^[🚀🐛🔧📝🎨♻️].*:.*' -and $line.Length -gt 10 -and $line.Length -lt 150) {
                     $cleanLine = $line -replace '­ƒÜÇ', '🚀' -replace '├ä', 'Ä' -replace '├╝', 'ü'

@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory=$true, Position=0)]
     [ValidateSet("setup", "commit", "release", "hotfix", "feature", "status")]
     [string]$Action,
-      [Parameter(Mandatory=$false)]
+    
+    [Parameter(Mandatory=$false)]
     [string]$Message = "",
     
     [Parameter(Mandatory=$false)]
@@ -349,7 +350,7 @@ switch ($Action) {
             Write-Warning "Committen und Hotfix-Release erstellen? (J/N) [Standard: J]"
             $confirm = Read-Host
             if ($confirm -eq "" -or $confirm -match '^[jJyY]') {
-                # Continue - Standard ist Ja
+                # Continue - Standard ist Ja (Enter = Ja)
             } else {
                 Write-Info "Abgebrochen."
                 exit 0
@@ -462,12 +463,13 @@ switch ($Action) {
 ℹ️  Branch: $(git rev-parse --abbrev-ref HEAD)
 ────────────────────────────────────────
 "@ -ForegroundColor Yellow
-          # 4. JETZT die kombinierte Bestätigung mit Enter = Ja
+          # 4. JETZT die kombinierte Bestätigung
         if (-not $Force -and -not $DryRun) {
             Write-Warning "Committen und Feature-Release erstellen? (J/N) [Standard: J]"
             $confirm = Read-Host
-            # Enter oder J/j = Ja, nur explizit N/n = Nein
-            if ($confirm -match '^[nN]') {
+            if ($confirm -eq "" -or $confirm -match '^[jJyY]') {
+                # Continue - Standard ist Ja (Enter = Ja)
+            } else {
                 Write-Info "Abgebrochen."
                 exit 0
             }
