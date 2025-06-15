@@ -1,4 +1,5 @@
 /.github
 /.vscode
+.vs/
 AdGuardTrayApp/obj/
 AdGuardTrayApp/bin/
