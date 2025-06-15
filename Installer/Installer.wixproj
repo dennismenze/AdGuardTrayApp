@@ -1,16 +1,16 @@
 <Project Sdk="WixToolset.Sdk/4.0.5">
   <PropertyGroup>
     <OutputType>Package</OutputType>
-    <TargetFramework>net472</TargetFramework>
-    <OutputName>AdGuardTrayApp-$(RuntimeIdentifier)</OutputName>
-    <PackageLanguage>1033</PackageLanguage>
+    <OutputName>AdGuardTrayApp-installer</OutputName>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Default SourceDir if not provided -->
+    <SourceDir Condition="'$(SourceDir)' == ''">.</SourceDir>
+    <DefineConstants>SourceDir="$(SourceDir)"</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="WixToolset.Sdk" Version="4.0.5" />
+    <Compile Include="AdGuardTrayApp.wxs" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <DefineConstants>SourceDir=$(SourceDir)</DefineConstants>
-  </PropertyGroup>
 </Project>

@@ -516,16 +516,15 @@ namespace AdGuardTrayApp
         {
             // Debug-Info in der Konsole ausgeben (für Debugging)
             System.Diagnostics.Debug.WriteLine($"[AdGuard Debug] {DateTime.Now:HH:mm:ss} - {message}");
-        }
-
-        private void SetupAutostart()
+        }        private void SetupAutostart()
         {
             try
             {
                 if (config.AutostartEnabled)
                 {
-                    var executablePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                    var exePath = executablePath.Replace(".dll", ".exe");
+                    // Use AppContext.BaseDirectory for single-file applications
+                    var appDir = AppContext.BaseDirectory;
+                    var exePath = Path.Combine(appDir, "AdGuardTrayApp.exe");
 
                     using var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
                     key?.SetValue("AdGuardTrayApp", $"\"{exePath}\"");

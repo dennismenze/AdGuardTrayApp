@@ -33,18 +33,14 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup .NET SDK
+      uses: actions/checkout@v4    - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        
+
     - name: Install WiX Toolset
       run: |
         dotnet tool install --global wix --version 4.0.5
-        wix extension add WixToolset.UI.wixext/4.0.5
-        wix extension add WixToolset.Util.wixext/4.0.5
         
     - name: Restore dependencies
       run: dotnet restore ${{ env.PROJECT_PATH }} --verbosity minimal
@@ -70,16 +66,21 @@ jobs:
         Compress-Archive -Path * -DestinationPath ../../AdGuardTrayApp-windows-${{ matrix.arch }}.zip
 
     - name: Create MSI Installer
-      run: |
-        # Prepare installer directory
+      run: |        # Prepare installer directory
         New-Item -ItemType Directory -Force -Path "./installer-build/${{ matrix.runtime }}"
         Copy-Item "./publish/${{ matrix.runtime }}/AdGuardTrayApp.exe" "./installer-build/${{ matrix.runtime }}/"
+        
+        # Convert to absolute path and ensure trailing backslash for WiX
+        $absoluteSourceDir = (Resolve-Path "./installer-build/${{ matrix.runtime }}").Path
+        if (-not $absoluteSourceDir.EndsWith('\')) {
+            $absoluteSourceDir += '\'
+        }
         
         # Build MSI using WiX
         wix build Installer/AdGuardTrayApp.wxs `
           -arch ${{ matrix.arch }} `
           -out AdGuardTrayApp-windows-${{ matrix.arch }}.msi `
-          -d SourceDir="./installer-build/${{ matrix.runtime }}"
+          -d "SourceDir=$absoluteSourceDir"
 
     - name: Upload ZIP artifact
       uses: actions/upload-artifact@v4

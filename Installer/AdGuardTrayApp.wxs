@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-    <Package Name="AdGuard Tray App" Language="1033" Version="1.0.0.0" Manufacturer="AdGuard Tray App" UpgradeCode="12345678-1234-1234-1234-123456789012">
+    <Package Name="AdGuard Tray App" 
+             Manufacturer="AdGuard Tray App" 
+             Version="1.0.0.0" 
+             UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
+        
         <SummaryInformation Description="AdGuard Tray App - System tray application for AdGuard Home IP unblocking" />
+        
+        <MajorUpgrade DowngradeErrorMessage="A newer version of AdGuard Tray App is already installed." />
         
         <Media Id="1" Cabinet="AdGuardTrayApp.cab" EmbedCab="yes" />
         
@@ -16,28 +22,36 @@
         </StandardDirectory>
         
         <!-- Desktop folder -->
-        <StandardDirectory Id="DesktopFolder" />
-        
-        <DirectoryRef Id="INSTALLFOLDER">
-            <Component Id="AdGuardTrayAppExecutable" Guid="*">
-                <File Id="AdGuardTrayAppExe" Source="$(var.SourceDir)\AdGuardTrayApp.exe" KeyPath="yes" Checksum="yes">
-                    <Shortcut Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Name="AdGuard Tray App" Description="AdGuard Home IP unblocking tool" WorkingDirectory="INSTALLFOLDER" />
-                    <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="AdGuard Tray App" Description="AdGuard Home IP unblocking tool" WorkingDirectory="INSTALLFOLDER" />
+        <StandardDirectory Id="DesktopFolder" />        <DirectoryRef Id="INSTALLFOLDER">
+            <Component Id="AdGuardTrayAppExecutable" Guid="B2C3D4E5-F6A7-8901-BCDE-F23456789012">
+                <File Id="AdGuardTrayAppExe" Source="$(var.SourceDir)AdGuardTrayApp.exe" KeyPath="yes">
+                    <Shortcut Id="StartMenuShortcut" 
+                             Directory="ApplicationProgramsFolder" 
+                             Name="AdGuard Tray App" 
+                             Description="AdGuard Home IP unblocking tool" 
+                             WorkingDirectory="INSTALLFOLDER" 
+                             Advertise="no" />
+                    <Shortcut Id="DesktopShortcut" 
+                             Directory="DesktopFolder" 
+                             Name="AdGuard Tray App" 
+                             Description="AdGuard Home IP unblocking tool" 
+                             WorkingDirectory="INSTALLFOLDER" 
+                             Advertise="no" />
                 </File>
             </Component>
             
-            <!-- Registry entry for uninstall -->
-            <Component Id="RegistryEntries" Guid="*">
+            <Component Id="RegistryEntries" Guid="C3D4E5F6-A7B8-9012-CDEF-345678901234">
                 <RegistryKey Root="HKCU" Key="Software\AdGuardTrayApp">
                     <RegistryValue Type="string" Name="InstallPath" Value="[INSTALLFOLDER]" KeyPath="yes"/>
                 </RegistryKey>
             </Component>
         </DirectoryRef>
         
-        <!-- Feature definition -->
-        <Feature Id="ProductFeature" Title="AdGuard Tray App" Level="1">
+        <!-- Main Feature -->
+        <Feature Id="Main" Title="AdGuard Tray App" Level="1">
             <ComponentRef Id="AdGuardTrayAppExecutable" />
             <ComponentRef Id="RegistryEntries" />
         </Feature>
+        
     </Package>
 </Wix>
